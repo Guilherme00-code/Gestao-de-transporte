@@ -1,6 +1,3 @@
-CREATE DATABASE IF NOT EXISTS canalog CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE canalog;
-
 CREATE TABLE IF NOT EXISTS `user` (
   id varchar(191) PRIMARY KEY,
   name varchar(191) NOT NULL,
