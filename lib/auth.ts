@@ -7,8 +7,17 @@ const baseURL = process.env.BETTER_AUTH_URL
   ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
   ?? 'http://localhost:3000'
 
+const vercelOrigins = [
+  process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  process.env.VERCEL_URL,
+  process.env.VERCEL_BRANCH_URL,
+]
+  .filter((origin): origin is string => Boolean(origin))
+  .map(origin => origin.startsWith('http') ? origin : `https://${origin}`)
+
 const trustedOrigins = [
   baseURL,
+  ...vercelOrigins,
   process.env.V0_RUNTIME_URL,
   process.env.V0_DEV_APP_URL,
   process.env.V0_BUILD_URL,
