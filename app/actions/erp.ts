@@ -224,3 +224,35 @@ export async function closeMonthlyPeriod(referenceMonth: string) {
   await db.insert(monthlyClosures).values({ userId, referenceMonth: month, status: 'closed', closedAt: new Date(), closedBy: userId })
   revalidatePath('/')
 }
+
+async function deleteOwned(
+  table: typeof trips | typeof maintenanceRecords | typeof downtimeRecords | typeof expenses | typeof revenues,
+  id: number,
+) {
+  const { userId, role } = await getContext()
+  assertCompanyRole(role)
+  if (!Number.isInteger(id) || id <= 0) throw new Error('Registro inválido')
+  await db.delete(table).where(and(eq(table.id, id), eq(table.userId, userId)))
+  revalidatePath('/erp')
+  revalidatePath('/')
+}
+
+export async function deleteTrip(id: number) {
+  return deleteOwned(trips, id)
+}
+
+export async function deleteMaintenance(id: number) {
+  return deleteOwned(maintenanceRecords, id)
+}
+
+export async function deleteDowntime(id: number) {
+  return deleteOwned(downtimeRecords, id)
+}
+
+export async function deleteExpense(id: number) {
+  return deleteOwned(expenses, id)
+}
+
+export async function deleteRevenue(id: number) {
+  return deleteOwned(revenues, id)
+}

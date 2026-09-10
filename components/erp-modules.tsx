@@ -8,6 +8,11 @@ import {
   createMaintenance,
   createRevenue,
   createTrip,
+  deleteDowntime,
+  deleteExpense,
+  deleteMaintenance,
+  deleteRevenue,
+  deleteTrip,
 } from '@/app/actions/erp'
 
 type FleetItem = { id: number; code: string; plate: string; brand: string; model: string }
@@ -56,6 +61,25 @@ export default function ErpModules({ fleet, team, data }: Props) {
   }
   const truckId = Number(form.truckId)
   const driverId = Number(form.driverId)
+  const totals = {
+    revenue: data.revenueRows.reduce((sum, item) => sum + Number(item.amount), 0),
+    expenses: data.expenseRows.reduce((sum, item) => sum + Number(item.amount), 0),
+    trips: data.tripRows.length,
+    maintenance: data.maintenanceRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
+  }
+  const remove = async (action: () => Promise<void>) => {
+    if (!window.confirm('Excluir este registro? Esta ação não pode ser desfeita.')) return
+    setPending(true)
+    setMessage('')
+    try {
+      await action()
+      setMessage('Registro excluído. Atualize a página para consultar os dados.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível excluir')
+    } finally {
+      setPending(false)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-8">
@@ -69,6 +93,12 @@ export default function ErpModules({ fleet, team, data }: Props) {
           <a className="secondary-button" href="/">Voltar ao painel</a>
         </div>
         {message && <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="metric-card"><p className="eyebrow">Viagens</p><p className="mt-3 text-2xl font-semibold">{totals.trips}</p><p className="mt-3 text-xs text-muted-foreground">Registros persistidos</p></div>
+          <div className="metric-card"><p className="eyebrow">Faturamento</p><p className="mt-3 text-2xl font-semibold">R$ {totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas registradas</p></div>
+          <div className="metric-card"><p className="eyebrow">Despesas</p><p className="mt-3 text-2xl font-semibold">R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Custos operacionais</p></div>
+          <div className="metric-card"><p className="eyebrow">Resultado</p><p className="mt-3 text-2xl font-semibold">R$ {(totals.revenue - totals.expenses - totals.maintenance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas menos custos</p></div>
+        </div>
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="panel">
             <div className="panel-header"><div><h2 className="panel-title">Viagem</h2><p className="panel-subtitle">Origem, destino, distância e carga</p></div></div>
@@ -133,6 +163,15 @@ export default function ErpModules({ fleet, team, data }: Props) {
             <button className="primary-button" disabled={pending}>Fechar mês</button>
           </form>
           {data.closureRows.length > 0 && <div className="table-scroll px-5 pb-5"><table><thead><tr><th>Mês</th><th>Status</th></tr></thead><tbody>{data.closureRows.map(item => <tr key={item.id}><td>{formatDate(item.referenceMonth)}</td><td>{item.status}</td></tr>)}</tbody></table></div>}
+        </section>
+        <section className="panel mt-6">
+          <div className="panel-header"><div><h2 className="panel-title">Registros recentes</h2><p className="panel-subtitle">Dados reais armazenados no MySQL</p></div></div>
+          <div className="grid gap-6 p-5 xl:grid-cols-2">
+            <div><h3 className="mb-3 font-medium">Viagens</h3>{data.tripRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Rota</th><th>KM</th><th></th></tr></thead><tbody>{data.tripRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.tripDate)}</td><td>{item.origin} → {item.destination}</td><td>{item.km}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteTrip(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhuma viagem registrada.</p>}</div>
+            <div><h3 className="mb-3 font-medium">Manutenções</h3>{data.maintenanceRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Problema</th><th>Total</th><th></th></tr></thead><tbody>{data.maintenanceRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.maintenanceDate)}</td><td>{item.problem}</td><td>R$ {Number(item.totalCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteMaintenance(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhuma manutenção registrada.</p>}</div>
+            <div><h3 className="mb-3 font-medium">Despesas</h3>{data.expenseRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Categoria</th><th>Valor</th><th></th></tr></thead><tbody>{data.expenseRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.expenseDate)}</td><td>{item.category}</td><td>R$ {Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteExpense(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhuma despesa registrada.</p>}</div>
+            <div><h3 className="mb-3 font-medium">Faturamento</h3>{data.revenueRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Rota</th><th>Valor</th><th></th></tr></thead><tbody>{data.revenueRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.revenueDate)}</td><td>{item.origin || '—'} → {item.destination || '—'}</td><td>R$ {Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteRevenue(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhum faturamento registrado.</p>}</div>
+          </div>
         </section>
       </div>
     </main>
