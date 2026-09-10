@@ -19,6 +19,7 @@ import {
   updateMaintenanceStatus,
   deleteTrip,
 } from '@/app/actions/erp'
+import { Activity, Banknote, Fuel, Route, Truck, Wrench } from 'lucide-react'
 
 type FleetItem = { id: number; code: string; plate: string; brand: string; model: string }
 type DriverItem = { id: number; name: string }
@@ -50,6 +51,10 @@ function formatDate(value: string | Date) {
 
 function ComparisonMetric({ label, value, help }: { label: string; value: string; help: string }) {
   return <div className="metric-card erp-metric-card"><p className="eyebrow">{label}</p><p className="mt-3 text-2xl font-semibold">{value}</p><p className="mt-3 text-xs text-muted-foreground">{help}</p></div>
+}
+
+function ErpMetric({ label, value, help, icon: Icon, tone = '' }: { label: string; value: string; help: string; icon: typeof Activity; tone?: string }) {
+  return <div className={`metric-card erp-metric-card ${tone}`}><div className="metric-heading"><span className="metric-icon"><Icon size={17} /></span><p className="eyebrow">{label}</p></div><p className="metric-value">{value}</p><p className="metric-help">{help}</p></div>
 }
 
 function sumNumbers<T>(items: T[], getValue: (item: T) => number) {
@@ -240,12 +245,12 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
         {showComparison && <section className="panel mb-6"><div className="panel-header"><div><h2 className="panel-title">Comparação histórica</h2><p className="panel-subtitle">Período selecionado contra o mês anterior</p></div></div>{period ? <div className="grid gap-3 p-5 sm:grid-cols-3"><ComparisonMetric label="Viagens atuais" value={String(totals.trips)} help={`${variation == null ? 'Sem base histórica' : `${variation.toFixed(1)}% vs. mês anterior`}`} /><ComparisonMetric label="Viagens anteriores" value={String(previousTrips)} help={previousPeriod} /><ComparisonMetric label="Toneladas anteriores" value={previousTons.toLocaleString('pt-BR')} help={previousPeriod} /></div> : <p className="p-5 text-sm text-muted-foreground">Selecione um período mensal para comparar.</p>}</section>}
         <section className="panel mb-6"><div className="panel-header"><div><h2 className="panel-title">Visão operacional</h2><p className="panel-subtitle">Distribuição dos registros no período selecionado</p></div></div><div className="chart-summary p-5"><div><span>Viagens</span><strong>{totals.trips}</strong><i style={{ width: `${Math.min(100, totals.trips * 8)}%` }} /></div><div><span>Toneladas</span><strong>{sumNumbers(filtered.tripRows, item => Number(item.tons)).toLocaleString('pt-BR')}</strong><i style={{ width: `${Math.min(100, sumNumbers(filtered.tripRows, item => Number(item.tons)) / 10)}%` }} /></div><div><span>Litros</span><strong>{sumNumbers(filtered.fuelRows, item => Number(item.liters)).toLocaleString('pt-BR')}</strong><i style={{ width: `${Math.min(100, sumNumbers(filtered.fuelRows, item => Number(item.liters)) / 10)}%` }} /></div></div></section>
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="metric-card erp-metric-card"><p className="eyebrow">Viagens</p><p className="mt-3 text-2xl font-semibold">{totals.trips}</p><p className="mt-3 text-xs text-muted-foreground">Registros persistidos</p></div>
-          <div className="metric-card erp-metric-card"><p className="eyebrow">Faturamento</p><p className="mt-3 text-2xl font-semibold">R$ {totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas registradas</p></div>
-          <div className="metric-card erp-metric-card"><p className="eyebrow">Despesas</p><p className="mt-3 text-2xl font-semibold">R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Custos operacionais</p></div>
-          <div className="metric-card erp-metric-card"><p className="eyebrow">Combustível</p><p className="mt-3 text-2xl font-semibold">R$ {totals.fuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">{sumNumbers(filtered.fuelRows, item => Number(item.liters)).toLocaleString('pt-BR')} litros</p></div>
-          <div className="metric-card erp-metric-card"><p className="eyebrow">Caminhões parados</p><p className="mt-3 text-2xl font-semibold">{totals.openDowntime}</p><p className="mt-3 text-xs text-muted-foreground">Indisponibilidades abertas</p></div>
-          <div className="metric-card erp-metric-card"><p className="eyebrow">Resultado</p><p className="mt-3 text-2xl font-semibold">R$ {financial.result.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas menos custos</p></div>
+          <ErpMetric icon={Route} label="Viagens" value={String(totals.trips)} help="Registros persistidos" />
+          <ErpMetric icon={Banknote} label="Faturamento" value={`R$ ${totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} help="Receitas registradas" tone="metric-positive" />
+          <ErpMetric icon={Wrench} label="Despesas" value={`R$ ${totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} help="Custos operacionais" tone="metric-warning" />
+          <ErpMetric icon={Fuel} label="Combustível" value={`R$ ${totals.fuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} help={`${sumNumbers(filtered.fuelRows, item => Number(item.liters)).toLocaleString('pt-BR')} litros`} />
+          <ErpMetric icon={Truck} label="Caminhões parados" value={String(totals.openDowntime)} help="Indisponibilidades abertas" tone="metric-danger" />
+          <ErpMetric icon={Activity} label="Resultado" value={`R$ ${financial.result.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} help="Receitas menos custos" tone="metric-positive" />
           <div className="metric-card"><p className="eyebrow">Margem</p><p className="mt-3 text-2xl font-semibold">{financial.marginPercent == null ? '—' : `${financial.marginPercent.toFixed(1)}%`}</p><p className="mt-3 text-xs text-muted-foreground">Resultado sobre faturamento</p></div>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">

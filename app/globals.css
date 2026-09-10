@@ -80,4 +80,26 @@ body { background: radial-gradient(circle at 75% -10%, oklch(0.97 0.035 88 / 55%
 .erp-guide-steps b { align-items: center; background: var(--primary); border-radius: 50%; color: var(--primary-foreground); display: inline-flex; font-size: 10px; height: 19px; justify-content: center; width: 19px; }
 .erp-content > section + section { border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent); }
 @media (max-width: 800px) { .erp-guide { align-items: flex-start; flex-direction: column; } }
+.dashboard-metric { min-height: 150px; padding: 20px 20px 18px; }
+.metric-heading { align-items: center; display: flex; gap: 10px; }
+.metric-heading .eyebrow { margin: 0; }
+.metric-value { font-size: clamp(1.6rem, 2.4vw, 2rem); font-weight: 700; letter-spacing: -.045em; margin-top: 18px; }
+.metric-help { color: var(--muted-foreground); font-size: 11px; margin-top: 8px; }
+.erp-metric-card .metric-icon { background: color-mix(in oklch, var(--primary) 12%, var(--card)); border-radius: 10px; height: 36px; width: 36px; }
+.erp-metric-card.metric-positive { border-top-color: oklch(0.55 0.16 150); }
+.erp-metric-card.metric-positive .metric-icon { background: oklch(0.93 0.06 150); color: oklch(0.45 0.14 150); }
+.erp-metric-card.metric-warning { border-top-color: oklch(0.7 0.16 75); }
+.erp-metric-card.metric-warning .metric-icon { background: oklch(0.95 0.06 88); color: oklch(0.58 0.14 75); }
+.erp-metric-card.metric-danger { border-top-color: oklch(0.62 0.16 35); }
+.erp-metric-card.metric-danger .metric-icon { background: oklch(0.95 0.05 35); color: oklch(0.58 0.14 35); }
+.content-wrap > section, .erp-module-section > div > section { animation: workspace-in .22s ease both; }
+.panel-header { border-bottom: 1px solid color-mix(in oklch, var(--border) 74%, transparent); padding-bottom: 16px; }
+.table-scroll { border: 1px solid color-mix(in oklch, var(--border) 75%, transparent); border-radius: 12px; margin-top: 16px; }
+.table-scroll th { background: color-mix(in oklch, var(--secondary) 70%, var(--card)); }
+.primary-button, .secondary-button, .ghost-button { transition: transform .16s ease, box-shadow .16s ease, filter .16s ease; }
+.primary-button:hover, .secondary-button:hover, .ghost-button:hover { box-shadow: 0 8px 18px oklch(0.25 0.04 150 / 10%); transform: translateY(-1px); }
+.auth-page { background: radial-gradient(circle at 15% 10%, oklch(0.92 0.06 88 / 42%), transparent 30%), radial-gradient(circle at 90% 90%, oklch(0.9 0.06 153 / 35%), transparent 35%), var(--background); }
+.auth-card { backdrop-filter: blur(8px); }
+.auth-card::after { color: var(--muted-foreground); content: 'Operação • Frota • Resultado'; display: block; font-size: 10px; letter-spacing: .13em; margin-top: 24px; text-align: center; text-transform: uppercase; }
+@media (max-width: 640px) { .dashboard-metric { min-height: 132px; }.metric-value { margin-top: 14px; }.erp-metric-card { min-height: 124px; } }
 @keyframes workspace-in { from { opacity: .65; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
