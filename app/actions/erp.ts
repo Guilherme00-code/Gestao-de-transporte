@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import {
   alerts,
+  auditLogs,
   downtimeRecords,
   expenses,
   maintenanceRecords,
@@ -23,6 +24,26 @@ async function getContext() {
   if (!session?.user) throw new Error('Não autorizado')
   const role = ((session.user as { role?: string }).role ?? 'driver') as Role
   return { userId: session.user.id, role }
+}
+
+async function assertPeriodOpen(userId: string, value: Date) {
+  const month = new Date(value.getFullYear(), value.getMonth(), 1)
+  const [closure] = await db
+    .select({ status: monthlyClosures.status })
+    .from(monthlyClosures)
+    .where(and(eq(monthlyClosures.userId, userId), eq(monthlyClosures.referenceMonth, month)))
+    .limit(1)
+  if (closure?.status === 'closed') throw new Error('O período está fechado e não aceita alterações normais')
+}
+
+async function writeAudit(userId: string, entity: string, entityId: string | number, action: string, reason?: string) {
+  await db.insert(auditLogs).values({
+    userId,
+    entity,
+    entityId: String(entityId),
+    action,
+    reason: reason?.trim() || null,
+  })
 }
 
 function requiredText(value: string, label: string) {
@@ -92,11 +113,13 @@ export async function createTrip(input: {
 }) {
   const { userId, role } = await getContext()
   await assertTruckAccess(userId, role, input.truckId)
+  const tripDate = dateValue(input.tripDate, 'Data da viagem')
+  await assertPeriodOpen(userId, tripDate)
   await db.insert(trips).values({
     userId,
     truckId: input.truckId,
     driverId: input.driverId || null,
-    tripDate: dateValue(input.tripDate, 'Data da viagem'),
+    tripDate,
     origin: requiredText(input.origin, 'Origem'),
     destination: requiredText(input.destination, 'Destino'),
     km: positive(input.km, 'KM'),
@@ -124,10 +147,12 @@ export async function createMaintenance(input: {
   const laborCost = Number(input.laborCost ?? 0)
   const servicesCost = Number(input.servicesCost ?? 0)
   const totalCost = partsCost + laborCost + servicesCost
+  const maintenanceDate = dateValue(input.maintenanceDate, 'Data da manutenção')
+  await assertPeriodOpen(userId, maintenanceDate)
   await db.insert(maintenanceRecords).values({
     userId,
     truckId: input.truckId,
-    maintenanceDate: dateValue(input.maintenanceDate, 'Data da manutenção'),
+    maintenanceDate,
     problem: requiredText(input.problem, 'Problema'),
     description: input.description?.trim() || null,
     partsCost: nonNegative(partsCost, 'Custo de peças'),
@@ -169,12 +194,14 @@ export async function createExpense(input: { truckId?: number; category: string;
   const { userId, role } = await getContext()
   assertCompanyRole(role)
   if (input.truckId) await assertTruckAccess(userId, role, input.truckId)
+  const expenseDate = dateValue(input.expenseDate, 'Data da despesa')
+  await assertPeriodOpen(userId, expenseDate)
   await db.insert(expenses).values({
     userId,
     truckId: input.truckId || null,
     category: requiredText(input.category, 'Categoria'),
     amount: positive(input.amount, 'Valor'),
-    expenseDate: dateValue(input.expenseDate, 'Data da despesa'),
+    expenseDate,
     description: input.description?.trim() || null,
   })
   revalidatePath('/')
@@ -194,6 +221,8 @@ export async function createRevenue(input: {
   const { userId, role } = await getContext()
   assertCompanyRole(role)
   if (input.truckId) await assertTruckAccess(userId, role, input.truckId)
+  const revenueDate = dateValue(input.revenueDate, 'Data do faturamento')
+  await assertPeriodOpen(userId, revenueDate)
   await db.insert(revenues).values({
     userId,
     truckId: input.truckId || null,
@@ -204,7 +233,7 @@ export async function createRevenue(input: {
     trips: nonNegative(input.trips ?? 0, 'Viagens'),
     km: nonNegative(input.km ?? 0, 'KM'),
     amount: positive(input.amount, 'Faturamento'),
-    revenueDate: dateValue(input.revenueDate, 'Data do faturamento'),
+    revenueDate,
   })
   revalidatePath('/')
 }
@@ -224,6 +253,7 @@ export async function closeMonthlyPeriod(referenceMonth: string) {
   const [existing] = await db.select({ id: monthlyClosures.id }).from(monthlyClosures).where(and(eq(monthlyClosures.userId, userId), eq(monthlyClosures.referenceMonth, month))).limit(1)
   if (existing) throw new Error('Este mês já está fechado')
   await db.insert(monthlyClosures).values({ userId, referenceMonth: month, status: 'closed', closedAt: new Date(), closedBy: userId })
+  await writeAudit(userId, 'monthly_closures', referenceMonth, 'close', `Fechamento de ${referenceMonth}`)
   revalidatePath('/')
 }
 
@@ -253,6 +283,7 @@ async function deleteOwned(
   const { userId, role } = await getContext()
   assertCompanyRole(role)
   if (!Number.isInteger(id) || id <= 0) throw new Error('Registro inválido')
+  await writeAudit(userId, 'erp_record', id, 'delete')
   await db.delete(table).where(and(eq(table.id, id), eq(table.userId, userId)))
   revalidatePath('/erp')
   revalidatePath('/')
