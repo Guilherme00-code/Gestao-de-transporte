@@ -52,7 +52,7 @@ export default function SpreadsheetImport({ fleet, team, disabled }: Props) {
       const fuelRows = fuelSheet ? XLSX.utils.sheet_to_json<Row>(fuelSheet, { defval: '' }) : []
       const cana = canaRows.map(row => ({
         date: date(find(row, ['data'])),
-        tons: number(find(row, ['peso'])),
+        tons: number(find(row, ['peso'])) / 1000,
         city: text(find(row, ['cidades', 'cidade'])),
         km: number(find(row, ['distância', 'distancia'])),
         departureTime: text(find(row, ['horas saída', 'horas saida'])),
