@@ -11,6 +11,7 @@ import {
   saveSetting,
   createRevenueRule,
   createExpenseCategory,
+  updateManagedUserRole,
 } from '@/app/actions/advanced'
 
 type FleetItem = { id: number; code: string; plate: string }
@@ -21,6 +22,7 @@ type AdvancedData = {
   incidents: Array<{ id: number; category: string; description: string; status: string }>
   notifications: Array<{ id: number; category: string; title: string; message: string }>
   alertRules: Array<{ id: number; category: string; metric: string; warningPercent: string; criticalPercent: string }>
+  managedUsers?: Array<{ id: string; name: string; email: string; role: string }>
 }
 
 export default function AdvancedModules({ fleet, team, data, role }: { fleet: FleetItem[]; team: DriverItem[]; data: AdvancedData; role: 'admin' | 'accountant' }) {
@@ -36,6 +38,19 @@ export default function AdvancedModules({ fleet, team, data, role }: { fleet: Fl
     try { await action(); setMessage('Registro avançado salvo com sucesso.'); router.refresh() }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível salvar') }
     finally { setPending(false) }
+  }
+  const changeUserRole = async (userId: string, nextRole: 'admin' | 'accountant' | 'driver') => {
+    setPending(true)
+    setMessage('')
+    try {
+      await updateManagedUserRole({ userId, role: nextRole })
+      setMessage('Perfil atualizado com sucesso.')
+      router.refresh()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o perfil')
+    } finally {
+      setPending(false)
+    }
   }
   return (
     <main className="erp-module-section bg-background text-foreground">
@@ -85,6 +100,11 @@ export default function AdvancedModules({ fleet, team, data, role }: { fleet: Fl
               </form>
             </div>
           </section>
+          {role === 'admin' && data.managedUsers && <section className="panel lg:col-span-2">
+            <h3 className="panel-title">Usuários e permissões</h3>
+            <p className="panel-subtitle">A alteração de perfil é validada no servidor.</p>
+            <div className="table-scroll mt-4"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th></th></tr></thead><tbody>{data.managedUsers.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.email}</td><td>{item.role}</td><td><select className="period-select" value={item.role} disabled={pending} onChange={event => changeUserRole(item.id, event.target.value as 'admin' | 'accountant' | 'driver')}><option value="admin">Administrador</option><option value="accountant">Contador</option><option value="driver">Funcionário</option></select></td></tr>)}</tbody></table></div>
+          </section>}
           <section className="panel">
             <h3 className="panel-title">Benchmark operacional/técnico</h3>
             <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={event => run(event, () => createBenchmark({ truckId: Number(truckId), metric: (event.currentTarget.elements.namedItem('metric') as HTMLInputElement).value, source: (event.currentTarget.elements.namedItem('source') as HTMLSelectElement).value as 'technical' | 'operational', targetValue: Number((event.currentTarget.elements.namedItem('target') as HTMLInputElement).value), validFrom: (event.currentTarget.elements.namedItem('validFrom') as HTMLInputElement).value }))}>

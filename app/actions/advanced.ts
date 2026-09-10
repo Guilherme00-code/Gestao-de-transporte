@@ -16,6 +16,7 @@ import {
   settings,
   revenueRules,
   expenseCategories,
+  user,
 } from '@/lib/db/schema'
 
 async function getContext() {
@@ -43,14 +44,15 @@ function validDate(value: string, label: string) {
 export async function getAdvancedData() {
   const { userId, role } = await getContext()
   const scope = role === 'admin' || role === 'accountant' ? undefined : eq(preventiveMaintenanceRules.userId, userId)
-  const [preventive, benchmarkRows, incidentRows, notificationRows, rules] = await Promise.all([
+  const [preventive, benchmarkRows, incidentRows, notificationRows, rules, managedUsers] = await Promise.all([
     db.select().from(preventiveMaintenanceRules).where(scope).orderBy(desc(preventiveMaintenanceRules.createdAt)),
     db.select().from(benchmarks).where(role === 'driver' ? eq(benchmarks.userId, userId) : undefined).orderBy(desc(benchmarks.createdAt)),
     db.select().from(incidents).where(role === 'driver' ? eq(incidents.userId, userId) : undefined).orderBy(desc(incidents.incidentDate)),
     db.select().from(notifications).where(and(eq(notifications.userId, userId), isNull(notifications.readAt))).orderBy(desc(notifications.createdAt)),
     db.select().from(alertRules).where(eq(alertRules.userId, userId)).orderBy(alertRules.category),
+    role === 'admin' ? db.select({ id: user.id, name: user.name, email: user.email, role: user.role }).from(user).orderBy(user.name) : Promise.resolve([]),
   ])
-  return { preventive, benchmarks: benchmarkRows, incidents: incidentRows, notifications: notificationRows, alertRules: rules }
+  return { preventive, benchmarks: benchmarkRows, incidents: incidentRows, notifications: notificationRows, alertRules: rules, managedUsers }
 }
 
 export async function createPreventiveRule(input: {
@@ -183,5 +185,14 @@ export async function createExpenseCategory(input: { name: string; scope: 'compa
   const { userId, role } = await getContext()
   companyOnly(role)
   await db.insert(expenseCategories).values({ userId, name: required(input.name, 'Categoria'), scope: input.scope })
+  revalidatePath('/erp')
+}
+
+export async function updateManagedUserRole(input: { userId: string; role: 'admin' | 'accountant' | 'driver' }) {
+  const { userId: currentUserId, role } = await getContext()
+  companyOnly(role)
+  const userId = required(input.userId, 'Usuário')
+  if (userId === currentUserId && input.role !== 'admin') throw new Error('O administrador não pode remover o próprio acesso')
+  await db.update(user).set({ role: input.role, updatedAt: new Date() }).where(eq(user.id, userId))
   revalidatePath('/erp')
 }
