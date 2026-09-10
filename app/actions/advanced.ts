@@ -1,9 +1,11 @@
 'use server'
 
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/current-user'
+import { auth } from '@/lib/auth'
 import {
   alertRules,
   benchmarks,
@@ -16,6 +18,8 @@ import {
   revenueRules,
   expenseCategories,
   user,
+  account,
+  session,
 } from '@/lib/db/schema'
 
 async function getContext() {
@@ -191,5 +195,48 @@ export async function updateManagedUserRole(input: { userId: string; role: 'admi
   const userId = required(input.userId, 'Usuário')
   if (userId === currentUserId && input.role !== 'admin') throw new Error('O administrador não pode remover o próprio acesso')
   await db.update(user).set({ role: input.role, updatedAt: new Date() }).where(eq(user.id, userId))
+  revalidatePath('/erp')
+}
+
+export async function createEmployeeAccount(input: {
+  name: string
+  email: string
+  password: string
+  phone?: string
+  employeeId?: string
+  assignedTruckId?: number
+}) {
+  const { userId, role } = await getContext()
+  companyOnly(role)
+  const name = required(input.name, 'Nome')
+  const email = required(input.email, 'E-mail').toLowerCase()
+  if (input.password.length < 8) throw new Error('A senha deve ter pelo menos 8 caracteres')
+  const [existingUser] = await db.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1)
+  if (existingUser) throw new Error('Já existe uma conta com este e-mail')
+  if (input.assignedTruckId) {
+    const [truck] = await db.select({ id: trucks.id }).from(trucks).where(and(eq(trucks.id, input.assignedTruckId), eq(trucks.userId, userId))).limit(1)
+    if (!truck) throw new Error('O caminhão selecionado não pertence à empresa')
+  }
+  const result = await auth.api.signUpEmail({
+    headers: await headers(),
+    body: { name, email, password: input.password, role: 'driver' },
+  })
+  const employeeUserId = result.user.id
+  try {
+    await db.insert(drivers).values({
+      userId,
+      name,
+      email,
+      phone: input.phone?.trim() || null,
+      employeeId: input.employeeId?.trim() || null,
+      assignedTruckId: input.assignedTruckId || null,
+    })
+    await db.update(user).set({ role: 'driver' }).where(eq(user.id, employeeUserId))
+  } catch (error) {
+    await db.delete(session).where(eq(session.userId, employeeUserId))
+    await db.delete(account).where(eq(account.userId, employeeUserId))
+    await db.delete(user).where(eq(user.id, employeeUserId))
+    throw error
+  }
   revalidatePath('/erp')
 }

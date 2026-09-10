@@ -12,6 +12,7 @@ import {
   createRevenueRule,
   createExpenseCategory,
   updateManagedUserRole,
+  createEmployeeAccount,
 } from '@/app/actions/advanced'
 
 type FleetItem = { id: number; code: string; plate: string }
@@ -104,6 +105,22 @@ export default function AdvancedModules({ fleet, team, data, role }: { fleet: Fl
           {role === 'admin' && data.managedUsers && <section className="panel lg:col-span-2">
             <h3 className="panel-title">Usuários e permissões</h3>
             <p className="panel-subtitle">A alteração de perfil é validada no servidor.</p>
+            <form className="mt-4 grid gap-3 rounded-xl border border-border bg-secondary/40 p-4 sm:grid-cols-2 lg:grid-cols-3" onSubmit={event => run(event, () => createEmployeeAccount({
+              name: (event.currentTarget.elements.namedItem('employeeName') as HTMLInputElement).value,
+              email: (event.currentTarget.elements.namedItem('employeeEmail') as HTMLInputElement).value,
+              password: (event.currentTarget.elements.namedItem('employeePassword') as HTMLInputElement).value,
+              phone: (event.currentTarget.elements.namedItem('employeePhone') as HTMLInputElement).value,
+              employeeId: (event.currentTarget.elements.namedItem('employeeId') as HTMLInputElement).value,
+              assignedTruckId: Number((event.currentTarget.elements.namedItem('employeeTruck') as HTMLSelectElement).value) || undefined,
+            }))}>
+              <input className="period-select" name="employeeName" placeholder="Nome do funcionário" required />
+              <input className="period-select" name="employeeEmail" type="email" placeholder="E-mail de acesso" required />
+              <input className="period-select" name="employeePassword" type="password" minLength={8} placeholder="Senha inicial (8+ caracteres)" required />
+              <input className="period-select" name="employeePhone" placeholder="Telefone" />
+              <input className="period-select" name="employeeId" placeholder="Matrícula" />
+              <select className="period-select" name="employeeTruck"><option value="">Vincular caminhão depois</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code} · {item.plate}</option>)}</select>
+              <button className="primary-button sm:col-span-2 lg:col-span-3" disabled={pending}>Criar conta de funcionário</button>
+            </form>
             <div className="table-scroll mt-4"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th></th></tr></thead><tbody>{data.managedUsers.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.email}</td><td>{item.role}</td><td><select className="period-select" value={item.role} disabled={pending} onChange={event => changeUserRole(item.id, event.target.value as 'admin' | 'accountant' | 'driver')}><option value="admin">Administrador</option><option value="accountant">Contador</option><option value="driver">Funcionário</option></select></td></tr>)}</tbody></table></div>
           </section>}
           <section className="panel">
