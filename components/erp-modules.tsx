@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { calculateFinancialMetrics } from '@/lib/erp/calculations'
 import {
   closeMonthlyPeriod,
   startMonthlyReview,
@@ -90,7 +91,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     fuel: filtered.fuelRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
     openDowntime: filtered.downtimeRows.filter(item => item.status === 'open').length,
   }
-  const margin = totals.revenue > 0 ? ((totals.revenue - totals.expenses - totals.maintenance) / totals.revenue) * 100 : null
+  const financial = calculateFinancialMetrics({ revenue: totals.revenue, costs: totals.expenses + totals.maintenance })
   const exportCsv = () => {
     const rows = [
       ['tipo', 'data', 'descricao', 'valor'],
@@ -143,8 +144,8 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
           <div className="metric-card"><p className="eyebrow">Despesas</p><p className="mt-3 text-2xl font-semibold">R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Custos operacionais</p></div>
           <div className="metric-card"><p className="eyebrow">Combustível</p><p className="mt-3 text-2xl font-semibold">R$ {totals.fuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">{filtered.fuelRows.reduce((sum, item) => sum + Number(item.liters), 0).toLocaleString('pt-BR')} litros</p></div>
           <div className="metric-card"><p className="eyebrow">Caminhões parados</p><p className="mt-3 text-2xl font-semibold">{totals.openDowntime}</p><p className="mt-3 text-xs text-muted-foreground">Indisponibilidades abertas</p></div>
-          <div className="metric-card"><p className="eyebrow">Resultado</p><p className="mt-3 text-2xl font-semibold">R$ {(totals.revenue - totals.expenses - totals.maintenance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas menos custos</p></div>
-          <div className="metric-card"><p className="eyebrow">Margem</p><p className="mt-3 text-2xl font-semibold">{margin == null ? '—' : `${margin.toFixed(1)}%`}</p><p className="mt-3 text-xs text-muted-foreground">Resultado sobre faturamento</p></div>
+          <div className="metric-card"><p className="eyebrow">Resultado</p><p className="mt-3 text-2xl font-semibold">R$ {financial.result.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas menos custos</p></div>
+          <div className="metric-card"><p className="eyebrow">Margem</p><p className="mt-3 text-2xl font-semibold">{financial.marginPercent == null ? '—' : `${financial.marginPercent.toFixed(1)}%`}</p><p className="mt-3 text-xs text-muted-foreground">Resultado sobre faturamento</p></div>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="panel">
@@ -204,7 +205,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
             </form>
           </section>
         </div>
-        <section className="panel mt-6">
+        <section id="relatorios" className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Fechamento mensal</h2><p className="panel-subtitle">Trave o período conferido pelo contador</p></div></div>
           <form className="flex flex-wrap gap-3 p-5" onSubmit={event => run(event, () => startMonthlyReview(form.month))}>
             <input required type="month" value={form.month} onChange={event => set('month', event.target.value)} />
