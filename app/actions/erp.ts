@@ -10,6 +10,7 @@ import {
   auditLogs,
   downtimeRecords,
   expenses,
+  fuelRecords,
   maintenanceRecords,
   monthlyClosures,
   revenues,
@@ -92,16 +93,17 @@ function assertAdminRole(role: Role) {
 export async function getErpData() {
   const { userId, role } = await getContext()
   const companyScope = role === 'admin' || role === 'accountant' ? undefined : eq(trips.userId, userId)
-  const [tripRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, alertRows, closureRows] = await Promise.all([
+  const [tripRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, fuelRows, alertRows, closureRows] = await Promise.all([
     db.select().from(trips).where(companyScope).orderBy(desc(trips.tripDate)),
     db.select().from(maintenanceRecords).where(role === 'driver' ? eq(maintenanceRecords.userId, userId) : undefined).orderBy(desc(maintenanceRecords.maintenanceDate)),
     db.select().from(downtimeRecords).where(role === 'driver' ? eq(downtimeRecords.userId, userId) : undefined).orderBy(desc(downtimeRecords.startedAt)),
     db.select().from(expenses).where(role === 'driver' ? eq(expenses.userId, userId) : undefined).orderBy(desc(expenses.expenseDate)),
     db.select().from(revenues).where(role === 'driver' ? eq(revenues.userId, userId) : undefined).orderBy(desc(revenues.revenueDate)),
+    db.select().from(fuelRecords).where(role === 'driver' ? eq(fuelRecords.userId, userId) : undefined).orderBy(desc(fuelRecords.recordDate)),
     db.select().from(alerts).where(role === 'driver' ? eq(alerts.userId, userId) : undefined).orderBy(desc(alerts.createdAt)),
     db.select().from(monthlyClosures).where(role === 'driver' ? eq(monthlyClosures.userId, userId) : undefined).orderBy(desc(monthlyClosures.referenceMonth)),
   ])
-  return { tripRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, alertRows, closureRows }
+  return { tripRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, fuelRows, alertRows, closureRows }
 }
 
 export async function createTrip(input: {

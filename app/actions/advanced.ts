@@ -1,6 +1,6 @@
 'use server'
 
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
@@ -11,6 +11,8 @@ import {
   incidents,
   notifications,
   preventiveMaintenanceRules,
+  drivers,
+  trucks,
 } from '@/lib/db/schema'
 
 async function getContext() {
@@ -98,6 +100,11 @@ export async function createIncident(input: {
 }) {
   const { userId, role } = await getContext()
   if (role === 'accountant') throw new Error('Contadores possuem acesso de consulta nesta área')
+  if (role === 'driver') {
+    const session = await auth.api.getSession({ headers: await headers() })
+    const [assigned] = await db.select({ id: drivers.id }).from(drivers).innerJoin(trucks, eq(drivers.assignedTruckId, trucks.id)).where(and(eq(trucks.id, input.truckId || 0), or(eq(drivers.email, session?.user.email ?? ''), eq(drivers.name, session?.user.name ?? '')))).limit(1)
+    if (!assigned) throw new Error('Ocorrência limitada ao caminhão atribuído')
+  }
   await db.insert(incidents).values({
     userId,
     truckId: input.truckId || null,

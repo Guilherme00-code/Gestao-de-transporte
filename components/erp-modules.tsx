@@ -25,6 +25,7 @@ type ErpData = {
   downtimeRows: Array<{ id: number; startedAt: string | Date; reason: string; status: string }>
   expenseRows: Array<{ id: number; expenseDate: string | Date; category: string; amount: string }>
   revenueRows: Array<{ id: number; revenueDate: string | Date; amount: string; origin: string | null; destination: string | null }>
+  fuelRows: Array<{ id: number; recordDate: string | Date; liters: string; totalCost: string; station: string | null; driverName: string }>
   alertRows: Array<{ id: number; severity: string; title: string; message: string }>
   closureRows: Array<{ id: number; referenceMonth: string | Date; status: string }>
 }
@@ -76,6 +77,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
       maintenanceRows: data.maintenanceRows.filter(item => matches(item.maintenanceDate)),
       expenseRows: data.expenseRows.filter(item => matches(item.expenseDate)),
       revenueRows: data.revenueRows.filter(item => matches(item.revenueDate)),
+        fuelRows: data.fuelRows.filter(item => matches(item.recordDate)),
     }
   }, [data, period])
   const totals = {
@@ -83,6 +85,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     expenses: filtered.expenseRows.reduce((sum, item) => sum + Number(item.amount), 0),
     trips: filtered.tripRows.length,
     maintenance: filtered.maintenanceRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
+    fuel: filtered.fuelRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
   }
   const exportCsv = () => {
     const rows = [
@@ -134,6 +137,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
           <div className="metric-card"><p className="eyebrow">Viagens</p><p className="mt-3 text-2xl font-semibold">{totals.trips}</p><p className="mt-3 text-xs text-muted-foreground">Registros persistidos</p></div>
           <div className="metric-card"><p className="eyebrow">Faturamento</p><p className="mt-3 text-2xl font-semibold">R$ {totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas registradas</p></div>
           <div className="metric-card"><p className="eyebrow">Despesas</p><p className="mt-3 text-2xl font-semibold">R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Custos operacionais</p></div>
+          <div className="metric-card"><p className="eyebrow">Combustível</p><p className="mt-3 text-2xl font-semibold">R$ {totals.fuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">{filtered.fuelRows.reduce((sum, item) => sum + Number(item.liters), 0).toLocaleString('pt-BR')} litros</p></div>
           <div className="metric-card"><p className="eyebrow">Resultado</p><p className="mt-3 text-2xl font-semibold">R$ {(totals.revenue - totals.expenses - totals.maintenance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas menos custos</p></div>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
