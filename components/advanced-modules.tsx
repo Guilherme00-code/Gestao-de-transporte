@@ -8,6 +8,9 @@ import {
   createIncident,
   createPreventiveRule,
   markNotificationRead,
+  saveSetting,
+  createRevenueRule,
+  createExpenseCategory,
 } from '@/app/actions/advanced'
 
 type FleetItem = { id: number; code: string; plate: string }
@@ -56,6 +59,31 @@ export default function AdvancedModules({ fleet, team, data, role }: { fleet: Fl
               <button className="primary-button" disabled={pending || role === 'accountant'}>Adicionar regra</button>
             </form>
             <div className="table-scroll mt-4"><table><tbody>{data.preventive.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.component}</td><td>{item.intervalKm ? `${item.intervalKm} km` : `${item.intervalDays} dias`}</td></tr>)}</tbody></table></div>
+          </section>
+          <section id="configuracoes-empresa" className="panel lg:col-span-2">
+            <h3 className="panel-title">Configurações da empresa</h3>
+            <p className="panel-subtitle">Regras persistidas para cobrança, custos e parâmetros operacionais.</p>
+            <div className="mt-4 grid gap-6 lg:grid-cols-3">
+              <form className="grid gap-3" onSubmit={event => run(event, () => saveSetting({ key: (event.currentTarget.elements.namedItem('settingKey') as HTMLInputElement).value, value: (event.currentTarget.elements.namedItem('settingValue') as HTMLInputElement).value }))}>
+                <input className="period-select" name="settingKey" placeholder="Chave (ex.: empresa.nome)" required />
+                <input className="period-select" name="settingValue" placeholder="Valor" required />
+                <button className="primary-button" disabled={pending || role === 'accountant'}>Salvar parâmetro</button>
+              </form>
+              <form className="grid gap-3" onSubmit={event => run(event, () => createRevenueRule({ name: (event.currentTarget.elements.namedItem('ruleName') as HTMLInputElement).value, billingType: (event.currentTarget.elements.namedItem('billingType') as HTMLSelectElement).value as 'ton' | 'trip' | 'km' | 'route', origin: (event.currentTarget.elements.namedItem('origin') as HTMLInputElement).value, destination: (event.currentTarget.elements.namedItem('destination') as HTMLInputElement).value, rate: Number((event.currentTarget.elements.namedItem('rate') as HTMLInputElement).value), validFrom: (event.currentTarget.elements.namedItem('validFrom') as HTMLInputElement).value }))}>
+                <input className="period-select" name="ruleName" placeholder="Nome da cobrança" required />
+                <select className="period-select" name="billingType"><option value="ton">Por tonelada</option><option value="trip">Por viagem</option><option value="km">Por KM</option><option value="route">Por rota</option></select>
+                <input className="period-select" name="origin" placeholder="Origem (opcional)" />
+                <input className="period-select" name="destination" placeholder="Destino (opcional)" />
+                <input className="period-select" name="rate" type="number" step="0.0001" min="0.0001" placeholder="Valor/tarifa" required />
+                <input className="period-select" name="validFrom" type="date" required />
+                <button className="primary-button" disabled={pending || role === 'accountant'}>Adicionar regra de faturamento</button>
+              </form>
+              <form className="grid gap-3" onSubmit={event => run(event, () => createExpenseCategory({ name: (event.currentTarget.elements.namedItem('categoryName') as HTMLInputElement).value, scope: (event.currentTarget.elements.namedItem('categoryScope') as HTMLSelectElement).value as 'company' | 'truck' | 'operation' }))}>
+                <input className="period-select" name="categoryName" placeholder="Categoria de custo" required />
+                <select className="period-select" name="categoryScope"><option value="company">Empresa</option><option value="truck">Caminhão</option><option value="operation">Operação</option></select>
+                <button className="primary-button" disabled={pending || role === 'accountant'}>Adicionar categoria</button>
+              </form>
+            </div>
           </section>
           <section className="panel">
             <h3 className="panel-title">Benchmark operacional/técnico</h3>

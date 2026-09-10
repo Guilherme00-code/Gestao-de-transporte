@@ -13,6 +13,9 @@ import {
   preventiveMaintenanceRules,
   drivers,
   trucks,
+  settings,
+  revenueRules,
+  expenseCategories,
 } from '@/lib/db/schema'
 
 async function getContext() {
@@ -139,5 +142,46 @@ export async function createAlertRule(input: {
     warningPercent: String(input.warningPercent),
     criticalPercent: String(input.criticalPercent),
   })
+  revalidatePath('/erp')
+}
+
+export async function saveSetting(input: { key: string; value: string }) {
+  const { userId, role } = await getContext()
+  companyOnly(role)
+  const key = required(input.key, 'Configuração')
+  const value = required(input.value, 'Valor')
+  const [existing] = await db.select({ id: settings.id }).from(settings).where(and(eq(settings.userId, userId), eq(settings.settingKey, key))).limit(1)
+  if (existing) await db.update(settings).set({ settingValue: value, updatedAt: new Date() }).where(eq(settings.id, existing.id))
+  else await db.insert(settings).values({ userId, settingKey: key, settingValue: value })
+  revalidatePath('/erp')
+}
+
+export async function createRevenueRule(input: {
+  name: string
+  billingType: 'ton' | 'trip' | 'km' | 'route'
+  origin?: string
+  destination?: string
+  rate: number
+  validFrom: string
+}) {
+  const { userId, role } = await getContext()
+  companyOnly(role)
+  if (!Number.isFinite(input.rate) || input.rate <= 0) throw new Error('A tarifa deve ser maior que zero')
+  await db.insert(revenueRules).values({
+    userId,
+    name: required(input.name, 'Nome da regra'),
+    billingType: input.billingType,
+    origin: input.origin?.trim() || null,
+    destination: input.destination?.trim() || null,
+    rate: String(input.rate),
+    validFrom: validDate(input.validFrom, 'Início da vigência'),
+  })
+  revalidatePath('/erp')
+}
+
+export async function createExpenseCategory(input: { name: string; scope: 'company' | 'truck' | 'operation' }) {
+  const { userId, role } = await getContext()
+  companyOnly(role)
+  await db.insert(expenseCategories).values({ userId, name: required(input.name, 'Categoria'), scope: input.scope })
   revalidatePath('/erp')
 }

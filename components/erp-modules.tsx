@@ -134,6 +134,22 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     link.click()
     URL.revokeObjectURL(link.href)
   }
+  const exportExcel = () => {
+    const headers = ['tipo', 'data', 'descricao', 'valor']
+    const rows = [
+      ...filtered.tripRows.map(item => ['viagem', formatDate(item.tripDate), `${item.origin} -> ${item.destination}`, item.km]),
+      ...filtered.fuelRows.map(item => ['combustivel', formatDate(item.recordDate), item.station || 'Nao informado', item.totalCost]),
+      ...filtered.expenseRows.map(item => ['despesa', formatDate(item.expenseDate), item.category, item.amount]),
+      ...filtered.revenueRows.map(item => ['faturamento', formatDate(item.revenueDate), `${item.origin || ''} -> ${item.destination || ''}`, item.amount]),
+      ...filtered.maintenanceRows.map(item => ['manutencao', formatDate(item.maintenanceDate), item.problem, item.totalCost]),
+    ]
+    const table = `<table><thead><tr>${headers.map(header => `<th>${header}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(value => `<td>${String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([`<html><meta charset="utf-8">${table}</html>`], { type: 'application/vnd.ms-excel' }))
+    link.download = `relatorio${period ? `-${period}` : ''}.xls`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
   const remove = async (action: () => Promise<void>) => {
     if (!window.confirm('Excluir este registro? Esta ação não pode ser desfeita.')) return
     setPending(true)
@@ -184,6 +200,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <label className="text-sm text-muted-foreground">Período <input type="month" value={period} onChange={event => setPeriod(event.target.value)} /></label>
           <button className="secondary-button" type="button" onClick={exportCsv}>Exportar CSV</button>
+          <button className="secondary-button" type="button" onClick={exportExcel}>Exportar Excel</button>
           <button className="secondary-button" type="button" onClick={() => window.print()}>Imprimir / PDF</button>
           <button className="secondary-button" type="button" onClick={() => setShowComparison(value => !value)}>Comparar período</button>
           {period && <button className="secondary-button" type="button" onClick={() => setPeriod('')}>Limpar período</button>}
