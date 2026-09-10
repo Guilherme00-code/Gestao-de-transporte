@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic'
 export default async function ErpPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect('/sign-in')
+  if ((session.user as { role?: string }).role === 'driver') redirect('/')
   const [management, data, advanced] = await Promise.all([getManagementData(), getErpData(), getAdvancedData()])
   return (
     <>

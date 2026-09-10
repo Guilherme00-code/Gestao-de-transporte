@@ -3,7 +3,7 @@
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { dailyOperations, drivers, trucks } from '@/lib/db/schema'
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, or } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
@@ -11,11 +11,11 @@ async function getContext() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) throw new Error('Não autorizado')
   const role = (session.user as { role?: string }).role ?? 'admin'
-  return { userId: session.user.id, name: session.user.name, role }
+  return { userId: session.user.id, email: session.user.email, name: session.user.name, role }
 }
 
 export async function getManagementData() {
-  const { userId, role } = await getContext()
+  const { userId, email, name, role } = await getContext()
   const canViewCompanyData = role === 'admin' || role === 'accountant'
   const fleetSelection = {
     id: trucks.id,
@@ -51,12 +51,17 @@ export async function getManagementData() {
     kmPerLiter: dailyOperations.kmPerLiter,
     litersPer100Km: dailyOperations.litersPer100Km,
   }
-  const [fleet, team] = await Promise.all([
+  const [allFleet, team] = await Promise.all([
     // The current deployment represents one transport company, so its authenticated
     // users share the fleet while records remain attributed to the submitting user.
     db.select(fleetSelection).from(trucks).orderBy(desc(trucks.createdAt)),
-    canViewCompanyData ? db.select(teamSelection).from(drivers).orderBy(desc(drivers.createdAt)) : db.select(teamSelection).from(drivers).where(eq(drivers.userId, userId)).orderBy(desc(drivers.createdAt)),
+    canViewCompanyData
+      ? db.select(teamSelection).from(drivers).orderBy(desc(drivers.createdAt))
+      : db.select(teamSelection).from(drivers).where(or(eq(drivers.email, email), eq(drivers.name, name))).orderBy(desc(drivers.createdAt)),
   ])
+  const fleet = canViewCompanyData
+    ? allFleet
+    : allFleet.filter(truck => team.some(driver => driver.assignedTruckId === truck.id))
   const operations = canViewCompanyData
     ? await db.select(operationSelection).from(dailyOperations).orderBy(desc(dailyOperations.operationDate))
     : await db.select(operationSelection).from(dailyOperations).where(eq(dailyOperations.userId, userId)).orderBy(desc(dailyOperations.operationDate))
