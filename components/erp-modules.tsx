@@ -29,7 +29,7 @@ type ErpData = {
   closureRows: Array<{ id: number; referenceMonth: string | Date; status: string }>
 }
 
-type Props = { fleet: FleetItem[]; team: DriverItem[]; data: ErpData }
+type Props = { fleet: FleetItem[]; team: DriverItem[]; data: ErpData; role: 'admin' | 'accountant' }
 type FormState = Record<string, string>
 
 const initial: FormState = {
@@ -40,10 +40,10 @@ const initial: FormState = {
 }
 
 function formatDate(value: string | Date) {
-  return new Date(value).toLocaleDateString('pt-BR')
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value))
 }
 
-export default function ErpModules({ fleet, team, data }: Props) {
+export default function ErpModules({ fleet, team, data, role }: Props) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>({ ...initial, truckId: String(fleet[0]?.id ?? ''), driverId: String(team[0]?.id ?? '') })
   const [message, setMessage] = useState('')
@@ -113,7 +113,7 @@ export default function ErpModules({ fleet, team, data }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-8">
+    <main className="erp-module-section bg-background text-foreground">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -121,8 +121,9 @@ export default function ErpModules({ fleet, team, data }: Props) {
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Módulos do ERP</h1>
             <p className="mt-2 text-sm text-muted-foreground">Registre os fatos da operação e deixe os indicadores para o sistema.</p>
           </div>
-          <a className="secondary-button" href="/">Voltar ao painel</a>
+          <span className="erp-section-kicker">Operação e financeiro</span>
         </div>
+        {role === 'accountant' && <div className="mb-6 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">Modo contador: consulte os dados, aplique filtros e faça o fechamento mensal. Alterações operacionais são realizadas pelo administrador.</div>}
         {message && <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <label className="text-sm text-muted-foreground">Período <input type="month" value={period} onChange={event => setPeriod(event.target.value)} /></label>
@@ -146,7 +147,7 @@ export default function ErpModules({ fleet, team, data }: Props) {
               <input required placeholder="Destino" value={form.destination} onChange={event => set('destination', event.target.value)} />
               <input required min="0.01" step="0.01" type="number" placeholder="KM" value={form.km} onChange={event => set('km', event.target.value)} />
               <input required min="0" step="0.01" type="number" placeholder="Toneladas" value={form.tons} onChange={event => set('tons', event.target.value)} />
-              <button className="primary-button sm:col-span-2" disabled={pending}>Salvar viagem</button>
+              <button className="primary-button sm:col-span-2" disabled={pending || role === 'accountant'}>Salvar viagem</button>
             </form>
           </section>
           <section className="panel">
@@ -160,7 +161,7 @@ export default function ErpModules({ fleet, team, data }: Props) {
               <input min="0" step="0.01" type="number" placeholder="Peças" value={form.partsCost} onChange={event => set('partsCost', event.target.value)} />
               <input min="0" step="0.01" type="number" placeholder="Mão de obra" value={form.laborCost} onChange={event => set('laborCost', event.target.value)} />
               <input min="0" step="0.01" type="number" placeholder="Serviços" value={form.servicesCost} onChange={event => set('servicesCost', event.target.value)} />
-              <button className="primary-button sm:col-span-2" disabled={pending}>Salvar manutenção</button>
+              <button className="primary-button sm:col-span-2" disabled={pending || role === 'accountant'}>Salvar manutenção</button>
             </form>
           </section>
           <section className="panel">
@@ -171,7 +172,7 @@ export default function ErpModules({ fleet, team, data }: Props) {
               <input required type="datetime-local" value={form.startedAt} onChange={event => set('startedAt', event.target.value)} />
               <input type="datetime-local" value={form.endedAt} onChange={event => set('endedAt', event.target.value)} />
               <input placeholder="Descrição" value={form.description} onChange={event => set('description', event.target.value)} />
-              <button className="primary-button sm:col-span-2" disabled={pending}>Salvar parada</button>
+              <button className="primary-button sm:col-span-2" disabled={pending || role === 'accountant'}>Salvar parada</button>
             </form>
           </section>
           <section className="panel">
@@ -181,14 +182,14 @@ export default function ErpModules({ fleet, team, data }: Props) {
               <input required min="0.01" step="0.01" type="number" placeholder="Valor" value={form.amount} onChange={event => set('amount', event.target.value)} />
               <input required type="date" value={form.date} onChange={event => set('date', event.target.value)} />
               <select value={form.truckId} onChange={event => set('truckId', event.target.value)}><option value="">Sem caminhão</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code}</option>)}</select>
-              <button className="primary-button sm:col-span-2" disabled={pending}>Salvar despesa</button>
+              <button className="primary-button sm:col-span-2" disabled={pending || role === 'accountant'}>Salvar despesa</button>
             </form>
             <form className="grid gap-3 border-t border-border p-5 sm:grid-cols-2" onSubmit={event => run(event, () => createRevenue({ truckId: truckId || undefined, origin: form.origin, destination: form.destination, amount: Number(form.amount), revenueDate: form.revenueDate, tons: Number(form.tons || 0), trips: Number(form.trips || 0), km: Number(form.km || 0) }))}>
               <input required type="date" value={form.revenueDate} onChange={event => set('revenueDate', event.target.value)} />
               <input required min="0.01" step="0.01" type="number" placeholder="Faturamento" value={form.amount} onChange={event => set('amount', event.target.value)} />
               <input placeholder="Origem" value={form.origin} onChange={event => set('origin', event.target.value)} />
               <input placeholder="Destino" value={form.destination} onChange={event => set('destination', event.target.value)} />
-              <button className="primary-button sm:col-span-2" disabled={pending}>Salvar faturamento</button>
+              <button className="primary-button sm:col-span-2" disabled={pending || role === 'accountant'}>Salvar faturamento</button>
             </form>
           </section>
         </div>
@@ -207,7 +208,7 @@ export default function ErpModules({ fleet, team, data }: Props) {
             <select value={form.truckId} onChange={event => set('truckId', event.target.value)}><option value="">Sem caminhão</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code}</option>)}</select>
             <input required className="sm:col-span-2" placeholder="Título do alerta" value={form.alertTitle} onChange={event => set('alertTitle', event.target.value)} />
             <textarea required className="sm:col-span-2" placeholder="Mensagem" value={form.alertMessage} onChange={event => set('alertMessage', event.target.value)} />
-            <button className="primary-button sm:col-span-2" disabled={pending}>Criar alerta</button>
+            <button className="primary-button sm:col-span-2" disabled={pending || role === 'accountant'}>Criar alerta</button>
           </form>
           {data.alertRows.length > 0 && <div className="table-scroll px-5 pb-5"><table><thead><tr><th>Severidade</th><th>Título</th><th>Mensagem</th></tr></thead><tbody>{data.alertRows.slice(0, 10).map(item => <tr key={item.id}><td>{item.severity}</td><td>{item.title}</td><td>{item.message}</td></tr>)}</tbody></table></div>}
         </section>

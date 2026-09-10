@@ -85,6 +85,10 @@ function assertCompanyRole(role: Role) {
   if (role === 'driver') throw new Error('Acesso restrito ao administrador ou contador')
 }
 
+function assertAdminRole(role: Role) {
+  if (role !== 'admin') throw new Error('Somente administradores podem alterar estes registros')
+}
+
 export async function getErpData() {
   const { userId, role } = await getContext()
   const companyScope = role === 'admin' || role === 'accountant' ? undefined : eq(trips.userId, userId)
@@ -112,6 +116,7 @@ export async function createTrip(input: {
   notes?: string
 }) {
   const { userId, role } = await getContext()
+  assertAdminRole(role)
   await assertTruckAccess(userId, role, input.truckId)
   const tripDate = dateValue(input.tripDate, 'Data da viagem')
   await assertPeriodOpen(userId, tripDate)
@@ -141,7 +146,7 @@ export async function createMaintenance(input: {
   workshop?: string
 }) {
   const { userId, role } = await getContext()
-  assertCompanyRole(role)
+  assertAdminRole(role)
   await assertTruckAccess(userId, role, input.truckId)
   const partsCost = Number(input.partsCost ?? 0)
   const laborCost = Number(input.laborCost ?? 0)
@@ -172,7 +177,7 @@ export async function createDowntime(input: {
   description?: string
 }) {
   const { userId, role } = await getContext()
-  assertCompanyRole(role)
+  assertAdminRole(role)
   await assertTruckAccess(userId, role, input.truckId)
   const startedAt = new Date(input.startedAt)
   const endedAt = input.endedAt ? new Date(input.endedAt) : null
@@ -192,7 +197,7 @@ export async function createDowntime(input: {
 
 export async function createExpense(input: { truckId?: number; category: string; amount: number; expenseDate: string; description?: string }) {
   const { userId, role } = await getContext()
-  assertCompanyRole(role)
+  assertAdminRole(role)
   if (input.truckId) await assertTruckAccess(userId, role, input.truckId)
   const expenseDate = dateValue(input.expenseDate, 'Data da despesa')
   await assertPeriodOpen(userId, expenseDate)
@@ -219,7 +224,7 @@ export async function createRevenue(input: {
   revenueDate: string
 }) {
   const { userId, role } = await getContext()
-  assertCompanyRole(role)
+  assertAdminRole(role)
   if (input.truckId) await assertTruckAccess(userId, role, input.truckId)
   const revenueDate = dateValue(input.revenueDate, 'Data do faturamento')
   await assertPeriodOpen(userId, revenueDate)
@@ -240,7 +245,7 @@ export async function createRevenue(input: {
 
 export async function resolveAlert(alertId: number) {
   const { userId, role } = await getContext()
-  assertCompanyRole(role)
+  assertAdminRole(role)
   if (!Number.isInteger(alertId) || alertId <= 0) throw new Error('Alerta inválido')
   await db.update(alerts).set({ resolvedAt: new Date() }).where(and(eq(alerts.id, alertId), role === 'admin' ? undefined : eq(alerts.userId, userId)))
   revalidatePath('/')
@@ -248,7 +253,7 @@ export async function resolveAlert(alertId: number) {
 
 export async function closeMonthlyPeriod(referenceMonth: string) {
   const { userId, role } = await getContext()
-  assertCompanyRole(role)
+  assertAdminRole(role)
   const month = dateValue(`${referenceMonth}-01`, 'Mês de referência')
   const [existing] = await db.select({ id: monthlyClosures.id }).from(monthlyClosures).where(and(eq(monthlyClosures.userId, userId), eq(monthlyClosures.referenceMonth, month))).limit(1)
   if (existing) throw new Error('Este mês já está fechado')

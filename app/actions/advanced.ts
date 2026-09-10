@@ -21,7 +21,7 @@ async function getContext() {
 }
 
 function companyOnly(role: string) {
-  if (role === 'driver') throw new Error('Acesso restrito ao administrador ou contador')
+  if (role !== 'admin') throw new Error('Acesso restrito ao administrador')
 }
 
 function required(value: string, label: string) {
@@ -96,7 +96,8 @@ export async function createIncident(input: {
   category: string
   description: string
 }) {
-  const { userId } = await getContext()
+  const { userId, role } = await getContext()
+  if (role === 'accountant') throw new Error('Contadores possuem acesso de consulta nesta área')
   await db.insert(incidents).values({
     userId,
     truckId: input.truckId || null,

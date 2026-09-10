@@ -20,7 +20,7 @@ type AdvancedData = {
   alertRules: Array<{ id: number; category: string; metric: string; warningPercent: string; criticalPercent: string }>
 }
 
-export default function AdvancedModules({ fleet, team, data }: { fleet: FleetItem[]; team: DriverItem[]; data: AdvancedData }) {
+export default function AdvancedModules({ fleet, team, data, role }: { fleet: FleetItem[]; team: DriverItem[]; data: AdvancedData; role: 'admin' | 'accountant' }) {
   const router = useRouter()
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
@@ -35,13 +35,14 @@ export default function AdvancedModules({ fleet, team, data }: { fleet: FleetIte
     finally { setPending(false) }
   }
   return (
-    <main className="min-h-screen bg-background px-4 pb-12 text-foreground sm:px-8">
+    <main className="erp-module-section bg-background text-foreground">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 border-t border-border pt-8">
           <p className="eyebrow text-primary">Camada avançada</p>
           <h2 className="mt-2 text-2xl font-semibold">Prevenção, contexto e alertas configuráveis</h2>
           <p className="mt-2 text-sm text-muted-foreground">Os registros abaixo alimentam análises sem afirmar causalidade sem evidência.</p>
         </div>
+        {role === 'accountant' && <div className="mb-5 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">Modo contador: benchmarks, regras e ocorrências são administrados pelo proprietário. Esta área está disponível para consulta.</div>}
         {message && <div className="mb-5 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="panel">
@@ -52,7 +53,7 @@ export default function AdvancedModules({ fleet, team, data }: { fleet: FleetIte
               <input className="period-select" name="component" placeholder="Componente" required />
               <input className="period-select" name="intervalKm" type="number" placeholder="Intervalo em KM" min="1" />
               <input className="period-select" name="intervalDays" type="number" placeholder="Intervalo em dias" min="1" />
-              <button className="primary-button" disabled={pending}>Adicionar regra</button>
+              <button className="primary-button" disabled={pending || role === 'accountant'}>Adicionar regra</button>
             </form>
             <div className="table-scroll mt-4"><table><tbody>{data.preventive.map(item => <tr key={item.id}><td>{item.name}</td><td>{item.component}</td><td>{item.intervalKm ? `${item.intervalKm} km` : `${item.intervalDays} dias`}</td></tr>)}</tbody></table></div>
           </section>
@@ -63,7 +64,7 @@ export default function AdvancedModules({ fleet, team, data }: { fleet: FleetIte
               <select className="period-select" name="source"><option value="operational">Histórico operacional</option><option value="technical">Referência técnica</option></select>
               <input className="period-select" name="target" type="number" step="0.001" placeholder="Valor de referência" required />
               <input className="period-select" name="validFrom" type="date" required />
-              <button className="primary-button" disabled={pending}>Adicionar benchmark</button>
+              <button className="primary-button" disabled={pending || role === 'accountant'}>Adicionar benchmark</button>
             </form>
             <div className="table-scroll mt-4"><table><tbody>{data.benchmarks.map(item => <tr key={item.id}><td>{item.metric}</td><td>{item.source === 'operational' ? 'Operacional' : 'Técnico'}</td><td>{item.targetValue}</td></tr>)}</tbody></table></div>
           </section>
@@ -73,7 +74,7 @@ export default function AdvancedModules({ fleet, team, data }: { fleet: FleetIte
               <div className="flex gap-2"><select className="period-select flex-1" value={truckId} onChange={event => setTruckId(event.target.value)}>{fleet.map(truck => <option key={truck.id} value={truck.id}>{truck.code} · {truck.plate}</option>)}</select><select className="period-select flex-1" value={driverId} onChange={event => setDriverId(event.target.value)}>{team.map(driver => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></div>
               <input className="period-select" name="incidentCategory" placeholder="Categoria" required />
               <textarea className="period-select" name="incidentDescription" placeholder="Descreva o ocorrido" required />
-              <button className="primary-button" disabled={pending}>Registrar ocorrência</button>
+              <button className="primary-button" disabled={pending || role === 'accountant'}>Registrar ocorrência</button>
             </form>
             <div className="table-scroll mt-4"><table><tbody>{data.incidents.map(item => <tr key={item.id}><td>{item.category}</td><td>{item.description}</td><td>{item.status}</td></tr>)}</tbody></table></div>
           </section>
@@ -85,7 +86,7 @@ export default function AdvancedModules({ fleet, team, data }: { fleet: FleetIte
               <input className="period-select" name="ruleMetric" placeholder="Indicador" required />
               <input className="period-select" name="warning" type="number" placeholder="Atenção %" required />
               <input className="period-select" name="critical" type="number" placeholder="Alerta %" required />
-              <button className="primary-button" disabled={pending}>Configurar limite</button>
+              <button className="primary-button" disabled={pending || role === 'accountant'}>Configurar limite</button>
             </form>
             <div className="mt-4 text-xs text-muted-foreground">{data.alertRules.length} regra(s) configurada(s).</div>
           </section>
