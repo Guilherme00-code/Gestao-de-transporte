@@ -30,6 +30,7 @@ type ErpData = {
   fuelRows: Array<{ id: number; recordDate: string | Date; liters: string; totalCost: string; station: string | null; driverName: string }>
   alertRows: Array<{ id: number; severity: string; title: string; message: string }>
   closureRows: Array<{ id: number; referenceMonth: string | Date; status: string }>
+  auditRows: Array<{ id: number; entity: string; entityId: string; action: string; reason: string | null; createdAt: string | Date }>
 }
 
 type Props = { fleet: FleetItem[]; team: DriverItem[]; data: ErpData; role: 'admin' | 'accountant' }
@@ -229,6 +230,10 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
         <section className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Ranking operacional</h2><p className="panel-subtitle">Ordenado por toneladas registradas no período selecionado</p></div></div>
           {rankingRows.length ? <div className="table-scroll"><table><thead><tr><th>Posição</th><th>Caminhão</th><th>Viagens</th><th>Toneladas</th><th>KM</th></tr></thead><tbody>{rankingRows.map(([truckId, row], index) => <tr key={truckId}><td>{index + 1}</td><td>#{truckId}</td><td>{row.trips}</td><td>{row.tons.toLocaleString('pt-BR')}</td><td>{row.km.toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-muted-foreground">Dados insuficientes para ranking neste período.</p>}
+        </section>
+        <section id="configuracoes" className="panel mt-6">
+          <div className="panel-header"><div><h2 className="panel-title">Auditoria recente</h2><p className="panel-subtitle">Alterações importantes registradas pelo sistema</p></div></div>
+          {data.auditRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Entidade</th><th>Ação</th><th>Motivo</th></tr></thead><tbody>{data.auditRows.map(item => <tr key={item.id}><td>{formatDate(item.createdAt)}</td><td>{item.entity} #{item.entityId}</td><td>{item.action}</td><td>{item.reason || '—'}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-muted-foreground">Nenhum evento de auditoria registrado.</p>}
         </section>
         <section className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Alertas operacionais</h2><p className="panel-subtitle">Registre riscos para acompanhamento administrativo</p></div></div>
