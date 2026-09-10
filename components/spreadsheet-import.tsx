@@ -13,8 +13,9 @@ function text(value: unknown) {
 }
 
 function number(value: unknown) {
-  const cleaned = text(value).replace(/\s/g, '').replace(/KM/gi, '').replace(/\./g, '').replace(',', '.')
-  const parsed = Number(cleaned)
+  const raw = text(value).replace(/\s/g, '').replace(/KM/gi, '')
+  const parts = raw.split('+').map(part => part.replace(',', '.'))
+  const parsed = parts.reduce((sum, part) => sum + Number(part), 0)
   return Number.isFinite(parsed) ? parsed : 0
 }
 
@@ -28,8 +29,20 @@ function date(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10)
 }
 
-function find(row: Row, keys: string[]) {
-  const entry = Object.entries(row).find(([key]) => keys.some(candidate => key.toLowerCase().includes(candidate)))
+function normalize(value: unknown) {
+  return text(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function readRows(sheet: XLSX.WorkSheet, required: string[]) {
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' })
+  const headerIndex = rows.findIndex(row => required.every(key => row.some(cell => normalize(cell).includes(normalize(key)))))
+  if (headerIndex < 0) return []
+  const headers = rows[headerIndex].map(cell => normalize(cell))
+  return rows.slice(headerIndex + 1).map(row => Object.fromEntries(headers.map((header, index) => [header, row[index]]))).filter(row => Object.values(row).some(value => text(value)))
+}
+
+function value(row: Row, keys: string[]) {
+  const entry = Object.entries(row).find(([key]) => keys.some(candidate => key.includes(normalize(candidate))))
   return entry?.[1]
 }
 
@@ -47,23 +60,24 @@ export default function SpreadsheetImport({ fleet, team, disabled }: Props) {
     setMessage('')
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
-      const canaRows = XLSX.utils.sheet_to_json<Row>(workbook.Sheets.cana ?? workbook.Sheets[workbook.SheetNames[0]], { defval: '' })
-      const fuelSheet = workbook.Sheets.abastecimento ?? workbook.Sheets[workbook.SheetNames[1]]
-      const fuelRows = fuelSheet ? XLSX.utils.sheet_to_json<Row>(fuelSheet, { defval: '' }) : []
+      const canaRows = readRows(workbook.Sheets.cana ?? workbook.Sheets[workbook.SheetNames[0]], ['data', 'peso', 'cidades'])
+      const fuelName = workbook.SheetNames.find(name => normalize(name).includes('abastecimento'))
+      const fuelSheet = fuelName ? workbook.Sheets[fuelName] : workbook.Sheets[workbook.SheetNames[1]]
+      const fuelRows = fuelSheet ? readRows(fuelSheet, ['data', 'posto', 'litros']) : []
       const cana = canaRows.map(row => ({
-        date: date(find(row, ['data'])),
-        tons: number(find(row, ['peso'])) / 1000,
-        city: text(find(row, ['cidades', 'cidade'])),
-        km: number(find(row, ['distância', 'distancia'])),
-        departureTime: text(find(row, ['horas saída', 'horas saida'])),
+        date: date(value(row, ['data'])),
+        tons: number(value(row, ['peso'])) / 1000,
+        city: text(value(row, ['cidades', 'cidade'])),
+        km: number(value(row, ['distancia'])),
+        departureTime: text(value(row, ['horas saida'])),
       })).filter(row => row.date && row.tons > 0 && row.city && row.km > 0)
       const fuel = fuelRows.map(row => ({
-        date: date(find(row, ['data'])),
-        odometer: number(find(row, ['km'])),
-        km: number(find(row, ['km total'])),
-        liters: number(find(row, ['litros'])),
-        average: number(find(row, ['média', 'media'])),
-        station: text(find(row, ['posto'])),
+        date: date(value(row, ['data'])),
+        odometer: number(value(row, ['km'])),
+        km: number(value(row, ['km total'])),
+        liters: number(value(row, ['litros'])),
+        average: number(value(row, ['media'])),
+        station: text(value(row, ['posto'])),
       })).filter(row => row.date && row.liters > 0 && row.km > 0)
       const result = await importSpreadsheetData({ truckId: Number(truckId), driverId: Number(driverId) || undefined, cana, fuel })
       setMessage(`${result.trips} viagens de cana e ${result.fuelRecords} abastecimentos importados.`)
