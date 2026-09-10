@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react'
 import {
   closeMonthlyPeriod,
+  createAlert,
   createDowntime,
   createExpense,
   createMaintenance,
@@ -23,6 +24,7 @@ type ErpData = {
   downtimeRows: Array<{ id: number; startedAt: string | Date; reason: string; status: string }>
   expenseRows: Array<{ id: number; expenseDate: string | Date; category: string; amount: string }>
   revenueRows: Array<{ id: number; revenueDate: string | Date; amount: string; origin: string | null; destination: string | null }>
+  alertRows: Array<{ id: number; severity: string; title: string; message: string }>
   closureRows: Array<{ id: number; referenceMonth: string | Date; status: string }>
 }
 
@@ -33,7 +35,7 @@ const initial: FormState = {
   truckId: '', driverId: '', date: '', origin: '', destination: '', km: '', tons: '',
   problem: '', description: '', partsCost: '', laborCost: '', servicesCost: '', workshop: '',
   reason: '', startedAt: '', endedAt: '', category: '', amount: '', revenueDate: '',
-  month: '',
+  month: '', alertTitle: '', alertMessage: '', alertSeverity: 'warning',
 }
 
 function formatDate(value: string | Date) {
@@ -194,6 +196,17 @@ export default function ErpModules({ fleet, team, data }: Props) {
             <button className="primary-button" disabled={pending}>Fechar mês</button>
           </form>
           {data.closureRows.length > 0 && <div className="table-scroll px-5 pb-5"><table><thead><tr><th>Mês</th><th>Status</th></tr></thead><tbody>{data.closureRows.map(item => <tr key={item.id}><td>{formatDate(item.referenceMonth)}</td><td>{item.status}</td></tr>)}</tbody></table></div>}
+        </section>
+        <section className="panel mt-6">
+          <div className="panel-header"><div><h2 className="panel-title">Alertas operacionais</h2><p className="panel-subtitle">Registre riscos para acompanhamento administrativo</p></div></div>
+          <form className="grid gap-3 p-5 sm:grid-cols-2" onSubmit={event => run(event, () => createAlert({ truckId: truckId || undefined, severity: form.alertSeverity as 'info' | 'warning' | 'critical', title: form.alertTitle, message: form.alertMessage }))}>
+            <select value={form.alertSeverity} onChange={event => set('alertSeverity', event.target.value)}><option value="info">Informação</option><option value="warning">Atenção</option><option value="critical">Crítico</option></select>
+            <select value={form.truckId} onChange={event => set('truckId', event.target.value)}><option value="">Sem caminhão</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code}</option>)}</select>
+            <input required className="sm:col-span-2" placeholder="Título do alerta" value={form.alertTitle} onChange={event => set('alertTitle', event.target.value)} />
+            <textarea required className="sm:col-span-2" placeholder="Mensagem" value={form.alertMessage} onChange={event => set('alertMessage', event.target.value)} />
+            <button className="primary-button sm:col-span-2" disabled={pending}>Criar alerta</button>
+          </form>
+          {data.alertRows.length > 0 && <div className="table-scroll px-5 pb-5"><table><thead><tr><th>Severidade</th><th>Título</th><th>Mensagem</th></tr></thead><tbody>{data.alertRows.slice(0, 10).map(item => <tr key={item.id}><td>{item.severity}</td><td>{item.title}</td><td>{item.message}</td></tr>)}</tbody></table></div>}
         </section>
         <section className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Registros recentes</h2><p className="panel-subtitle">Dados reais armazenados no MySQL</p></div></div>

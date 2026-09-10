@@ -221,8 +221,29 @@ export async function closeMonthlyPeriod(referenceMonth: string) {
   const { userId, role } = await getContext()
   assertCompanyRole(role)
   const month = dateValue(`${referenceMonth}-01`, 'Mês de referência')
+  const [existing] = await db.select({ id: monthlyClosures.id }).from(monthlyClosures).where(and(eq(monthlyClosures.userId, userId), eq(monthlyClosures.referenceMonth, month))).limit(1)
+  if (existing) throw new Error('Este mês já está fechado')
   await db.insert(monthlyClosures).values({ userId, referenceMonth: month, status: 'closed', closedAt: new Date(), closedBy: userId })
   revalidatePath('/')
+}
+
+export async function createAlert(input: {
+  truckId?: number
+  severity: 'info' | 'warning' | 'critical'
+  title: string
+  message: string
+}) {
+  const { userId, role } = await getContext()
+  assertCompanyRole(role)
+  if (input.truckId) await assertTruckAccess(userId, role, input.truckId)
+  await db.insert(alerts).values({
+    userId,
+    truckId: input.truckId || null,
+    severity: input.severity,
+    title: requiredText(input.title, 'Título'),
+    message: requiredText(input.message, 'Mensagem'),
+  })
+  revalidatePath('/erp')
 }
 
 async function deleteOwned(
