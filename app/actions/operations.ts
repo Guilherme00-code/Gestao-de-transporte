@@ -23,6 +23,7 @@ function validNumber(value: number | undefined): value is number { return value 
 
 export async function createDailyOperation(input: { truckId: number; driverName: string; operationDate: string; km: number; trips: number; tons: number; liters: number; kmInitial?: number; kmFinal?: number; notes?: string }) {
   const { userId, email, name, role } = await getContext()
+  if (role === 'accountant') throw new Error('Contadores consultam os registros enviados pelos funcionários')
   await assertTruckAccess(userId, email, name, role, input.truckId)
   if (!input.driverName.trim() || !input.operationDate || ![input.km, input.trips, input.tons, input.liters].every(validNumber) || input.km < 0 || input.trips <= 0 || input.tons < 0 || input.liters < 0) throw new Error('Informe valores válidos para a operação')
   if ((input.kmInitial == null) !== (input.kmFinal == null) || (input.kmInitial != null && ![input.kmInitial, input.kmFinal].every(validNumber))) throw new Error('Informe KM inicial e KM final juntos')
@@ -44,6 +45,7 @@ export async function createDailyOperation(input: { truckId: number; driverName:
 
 export async function createFuelRecord(input: { truckId: number; driverName: string; recordDate: string; km: number; liters: number; pricePerLiter: number; station?: string }) {
   const { userId, email, name, role } = await getContext()
+  if (role === 'accountant') throw new Error('Contadores consultam os abastecimentos enviados pelos funcionários')
   await assertTruckAccess(userId, email, name, role, input.truckId)
   if (!input.driverName.trim() || !input.recordDate || ![input.km, input.liters, input.pricePerLiter].every(validNumber) || input.km <= 0 || input.liters <= 0 || input.pricePerLiter < 0) throw new Error('Informe valores válidos para o abastecimento')
   const { totalCost } = calculateFuelCost(input.liters, input.pricePerLiter)

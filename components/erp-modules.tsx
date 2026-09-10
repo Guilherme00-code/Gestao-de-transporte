@@ -25,6 +25,7 @@ type FleetItem = { id: number; code: string; plate: string; brand: string; model
 type DriverItem = { id: number; name: string }
 type ErpData = {
   tripRows: Array<{ id: number; truckId: number; driverId: number | null; tripDate: string | Date; origin: string; destination: string; km: string; tons: string }>
+  operationRows: Array<{ id: number; truckId: number; driverName: string; operationDate: string | Date; km: string; trips: string; tons: string; liters: string; kmPerLiter: string }>
   maintenanceRows: Array<{ id: number; truckId: number; maintenanceDate: string | Date; problem: string; totalCost: string; status: string }>
   downtimeRows: Array<{ id: number; truckId: number; startedAt: string | Date; reason: string; status: string }>
   expenseRows: Array<{ id: number; truckId: number | null; expenseDate: string | Date; category: string; amount: string }>
@@ -110,6 +111,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     return {
       ...data,
       tripRows: data.tripRows.filter(item => matches(item.tripDate) && truckMatches(item.truckId) && driverMatches(item.driverId)),
+      operationRows: data.operationRows.filter(item => matches(item.operationDate) && truckMatches(item.truckId) && (!reportDriverId || item.driverName === team.find(driver => String(driver.id) === reportDriverId)?.name)),
       maintenanceRows: data.maintenanceRows.filter(item => matches(item.maintenanceDate) && truckMatches(item.truckId)),
       downtimeRows: data.downtimeRows.filter(item => matches(item.startedAt) && truckMatches(item.truckId)),
       expenseRows: data.expenseRows.filter(item => matches(item.expenseDate) && (!reportTruckId || String(item.truckId ?? '') === reportTruckId)),
@@ -333,6 +335,10 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
             }}>Fechar mês</button>
           </form>
           {data.closureRows.length > 0 && <div className="table-scroll px-5 pb-5"><table><thead><tr><th>Mês</th><th>Status</th></tr></thead><tbody>{data.closureRows.map(item => <tr key={item.id}><td>{formatDate(item.referenceMonth)}</td><td>{item.status}</td></tr>)}</tbody></table></div>}
+        </section>
+        <section className="panel mt-6">
+          <div className="panel-header"><div><h2 className="panel-title">Operações enviadas pelos funcionários</h2><p className="panel-subtitle">Registros diários informados no celular e disponíveis para conferência administrativa.</p></div></div>
+          {filtered.operationRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Funcionário</th><th>Caminhão</th><th>KM</th><th>Viagens</th><th>Toneladas</th><th>KM/L</th></tr></thead><tbody>{filtered.operationRows.slice(0, 20).map(item => <tr key={item.id}><td>{formatDate(item.operationDate)}</td><td>{item.driverName}</td><td>#{item.truckId}</td><td>{item.km}</td><td>{item.trips}</td><td>{item.tons}</td><td>{Number(item.kmPerLiter).toFixed(2)}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-muted-foreground">Nenhuma operação diária enviada pelos funcionários no período selecionado.</p>}
         </section>
         <section className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Ranking operacional</h2><p className="panel-subtitle">Ordenado por toneladas registradas no período selecionado</p></div></div>

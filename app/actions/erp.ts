@@ -15,6 +15,7 @@ import {
   revenues,
   trips,
   trucks,
+  dailyOperations,
 } from '@/lib/db/schema'
 
 type Role = 'admin' | 'accountant' | 'driver'
@@ -91,8 +92,10 @@ function assertAdminRole(role: Role) {
 export async function getErpData() {
   const { userId, role } = await getContext()
   const companyScope = role === 'admin' || role === 'accountant' ? undefined : eq(trips.userId, userId)
-  const [tripRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, fuelRows, alertRows, closureRows, auditRows] = await Promise.all([
+  const operationScope = role === 'admin' || role === 'accountant' ? undefined : eq(dailyOperations.userId, userId)
+  const [tripRows, operationRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, fuelRows, alertRows, closureRows, auditRows] = await Promise.all([
     db.select().from(trips).where(companyScope).orderBy(desc(trips.tripDate)),
+    db.select().from(dailyOperations).where(operationScope).orderBy(desc(dailyOperations.operationDate)),
     db.select().from(maintenanceRecords).where(role === 'driver' ? eq(maintenanceRecords.userId, userId) : undefined).orderBy(desc(maintenanceRecords.maintenanceDate)),
     db.select().from(downtimeRecords).where(role === 'driver' ? eq(downtimeRecords.userId, userId) : undefined).orderBy(desc(downtimeRecords.startedAt)),
     db.select().from(expenses).where(role === 'driver' ? eq(expenses.userId, userId) : undefined).orderBy(desc(expenses.expenseDate)),
@@ -102,7 +105,7 @@ export async function getErpData() {
     db.select().from(monthlyClosures).where(role === 'driver' ? eq(monthlyClosures.userId, userId) : undefined).orderBy(desc(monthlyClosures.referenceMonth)),
     db.select().from(auditLogs).where(role === 'driver' ? eq(auditLogs.userId, userId) : undefined).orderBy(desc(auditLogs.createdAt)).limit(50),
   ])
-  return { tripRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, fuelRows, alertRows, closureRows, auditRows }
+  return { tripRows, operationRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, fuelRows, alertRows, closureRows, auditRows }
 }
 
 export async function createTrip(input: {
