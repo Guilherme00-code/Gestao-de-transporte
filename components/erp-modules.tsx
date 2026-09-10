@@ -121,7 +121,7 @@ export default function ErpModules({ fleet, team, data }: Props) {
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Módulos do ERP</h1>
             <p className="mt-2 text-sm text-muted-foreground">Registre os fatos da operação e deixe os indicadores para o sistema.</p>
           </div>
-          <span className="period-select">Painel completo</span>
+          <a className="secondary-button" href="/">Voltar ao painel</a>
         </div>
         {message && <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
         <div className="mb-6 flex flex-wrap items-center gap-3">
