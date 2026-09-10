@@ -259,11 +259,24 @@ export async function closeMonthlyPeriod(referenceMonth: string) {
   const { userId, role } = await getContext()
   assertAdminRole(role)
   const month = dateValue(`${referenceMonth}-01`, 'Mês de referência')
-  const [existing] = await db.select({ id: monthlyClosures.id }).from(monthlyClosures).where(and(eq(monthlyClosures.userId, userId), eq(monthlyClosures.referenceMonth, month))).limit(1)
-  if (existing) throw new Error('Este mês já está fechado')
-  await db.insert(monthlyClosures).values({ userId, referenceMonth: month, status: 'closed', closedAt: new Date(), closedBy: userId })
+  const [existing] = await db.select({ id: monthlyClosures.id, status: monthlyClosures.status }).from(monthlyClosures).where(and(eq(monthlyClosures.userId, userId), eq(monthlyClosures.referenceMonth, month))).limit(1)
+  if (existing?.status === 'closed') throw new Error('Este mês já está fechado')
+  if (existing) await db.update(monthlyClosures).set({ status: 'closed', closedAt: new Date(), closedBy: userId }).where(eq(monthlyClosures.id, existing.id))
+  else await db.insert(monthlyClosures).values({ userId, referenceMonth: month, status: 'closed', closedAt: new Date(), closedBy: userId })
   await writeAudit(userId, 'monthly_closures', referenceMonth, 'close', `Fechamento de ${referenceMonth}`)
   revalidatePath('/')
+}
+
+export async function startMonthlyReview(referenceMonth: string) {
+  const { userId, role } = await getContext()
+  if (role !== 'admin' && role !== 'accountant') throw new Error('Acesso restrito ao administrador ou contador')
+  const month = dateValue(`${referenceMonth}-01`, 'Mês de referência')
+  const [existing] = await db.select({ id: monthlyClosures.id, status: monthlyClosures.status }).from(monthlyClosures).where(and(eq(monthlyClosures.userId, userId), eq(monthlyClosures.referenceMonth, month))).limit(1)
+  if (existing?.status === 'closed') throw new Error('Este mês já está fechado')
+  if (existing) await db.update(monthlyClosures).set({ status: 'in_review' }).where(eq(monthlyClosures.id, existing.id))
+  else await db.insert(monthlyClosures).values({ userId, referenceMonth: month, status: 'in_review' })
+  await writeAudit(userId, 'monthly_closures', referenceMonth, 'start_review', `Conferência de ${referenceMonth}`)
+  revalidatePath('/erp')
 }
 
 export async function createAlert(input: {
