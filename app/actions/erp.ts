@@ -256,6 +256,29 @@ export async function resolveAlert(alertId: number) {
   revalidatePath('/')
 }
 
+export async function updateMaintenanceStatus(input: {
+  id: number
+  status: 'open' | 'in_progress' | 'awaiting_part' | 'completed'
+  entryAt?: string
+  exitAt?: string
+  reason: string
+}) {
+  const { userId, role } = await getContext()
+  assertAdminRole(role)
+  if (!Number.isInteger(input.id) || input.id <= 0) throw new Error('Manutenção inválida')
+  const reason = requiredText(input.reason, 'Motivo da alteração')
+  const [current] = await db.select().from(maintenanceRecords).where(eq(maintenanceRecords.id, input.id)).limit(1)
+  if (!current) throw new Error('Manutenção não encontrada')
+  const entryAt = input.entryAt ? new Date(input.entryAt) : current.entryAt
+  const exitAt = input.exitAt ? new Date(input.exitAt) : current.exitAt
+  if (entryAt && Number.isNaN(entryAt.getTime())) throw new Error('Data de entrada inválida')
+  if (exitAt && Number.isNaN(exitAt.getTime())) throw new Error('Data de saída inválida')
+  if (entryAt && exitAt && exitAt < entryAt) throw new Error('A saída não pode ser anterior à entrada')
+  await db.update(maintenanceRecords).set({ status: input.status, entryAt, exitAt }).where(eq(maintenanceRecords.id, input.id))
+  await writeAudit(userId, 'maintenance_records', input.id, 'status_change', reason)
+  revalidatePath('/erp')
+}
+
 export async function closeMonthlyPeriod(referenceMonth: string) {
   const { userId, role } = await getContext()
   assertAdminRole(role)

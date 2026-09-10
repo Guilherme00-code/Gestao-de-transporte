@@ -16,6 +16,7 @@ import {
   deleteExpense,
   deleteMaintenance,
   deleteRevenue,
+  updateMaintenanceStatus,
   deleteTrip,
 } from '@/app/actions/erp'
 
@@ -146,6 +147,26 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
       setPending(false)
     }
   }
+    const changeMaintenanceStatus = async (id: number) => {
+      const status = window.prompt('Status: open, in_progress, awaiting_part ou completed', 'in_progress')
+      if (!status || !['open', 'in_progress', 'awaiting_part', 'completed'].includes(status)) {
+        setMessage('Status de manutenção inválido')
+        return
+      }
+      const reason = window.prompt('Motivo da alteração')
+      if (!reason) return
+      setPending(true)
+      setMessage('')
+      try {
+        await updateMaintenanceStatus({ id, status: status as 'open' | 'in_progress' | 'awaiting_part' | 'completed', reason })
+        setMessage('Status da manutenção atualizado e auditado.')
+        router.refresh()
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar a manutenção')
+      } finally {
+        setPending(false)
+        }
+    }
 
   return (
     <main className="erp-module-section bg-background text-foreground">
@@ -282,7 +303,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
           <div className="panel-header"><div><h2 className="panel-title">Registros recentes</h2><p className="panel-subtitle">Dados reais armazenados no MySQL</p></div></div>
           <div className="grid gap-6 p-5 xl:grid-cols-2">
             <div><h3 className="mb-3 font-medium">Viagens</h3>{filtered.tripRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Rota</th><th>KM</th><th></th></tr></thead><tbody>{filtered.tripRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.tripDate)}</td><td>{item.origin} → {item.destination}</td><td>{item.km}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteTrip(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhuma viagem registrada.</p>}</div>
-              <div><h3 className="mb-3 font-medium">Manutenções</h3>{filtered.maintenanceRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Problema</th><th>Total</th><th></th></tr></thead><tbody>{filtered.maintenanceRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.maintenanceDate)}</td><td>{item.problem}</td><td>R$ {Number(item.totalCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteMaintenance(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhuma manutenção registrada.</p>}</div>
+              <div><h3 className="mb-3 font-medium">Manutenções</h3>{filtered.maintenanceRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Problema</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>{filtered.maintenanceRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.maintenanceDate)}</td><td>{item.problem}</td><td>R$ {Number(item.totalCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td>{item.status}</td><td><button className="text-xs text-primary" disabled={pending || role === 'accountant'} onClick={() => changeMaintenanceStatus(item.id)}>Alterar status</button>{role === 'admin' && <button className="ml-3 text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteMaintenance(item.id))}>Excluir</button>}</td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhuma manutenção registrada.</p>}</div>
               <div><h3 className="mb-3 font-medium">Despesas</h3>{filtered.expenseRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Categoria</th><th>Valor</th><th></th></tr></thead><tbody>{filtered.expenseRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.expenseDate)}</td><td>{item.category}</td><td>R$ {Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteExpense(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhuma despesa registrada.</p>}</div>
               <div><h3 className="mb-3 font-medium">Faturamento</h3>{filtered.revenueRows.length ? <div className="table-scroll"><table><thead><tr><th>Data</th><th>Rota</th><th>Valor</th><th></th></tr></thead><tbody>{filtered.revenueRows.slice(0, 10).map(item => <tr key={item.id}><td>{formatDate(item.revenueDate)}</td><td>{item.origin || '—'} → {item.destination || '—'}</td><td>R$ {Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td><td><button className="text-xs text-destructive" disabled={pending} onClick={() => remove(() => deleteRevenue(item.id))}>Excluir</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhum faturamento registrado.</p>}</div>
           </div>

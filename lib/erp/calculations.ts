@@ -99,3 +99,41 @@ export function calculateAvailability(plannedDays: NumericInput, downtimeDays: N
   const downtime = Math.max(0, toNumber(downtimeDays))
   return safeDivide(Math.max(0, planned - downtime) * 100, planned)
 }
+
+export function calculateDowntimeImpact(dailyRevenue: NumericInput, downtimeDays: NumericInput) {
+  const revenue = Math.max(0, toNumber(dailyRevenue))
+  const days = Math.max(0, toNumber(downtimeDays))
+  return {
+    estimatedDailyRevenue: revenue,
+    downtimeDays: days,
+    estimatedUnrealizedRevenue: revenue * days,
+  }
+}
+
+export function calculateHistoricalAverage(values: NumericInput[]) {
+  const numbers = values.map(toNumber)
+  if (numbers.length === 0) return null
+  return numbers.reduce((sum, value) => sum + value, 0) / numbers.length
+}
+
+export function identifyPossibleFactors(input: {
+  currentTrips: NumericInput
+  historicalTrips: NumericInput
+  currentTons: NumericInput
+  historicalTons: NumericInput
+  currentFuelCost: NumericInput
+  historicalFuelCost: NumericInput
+  downtimeDays: NumericInput
+  maintenanceCost: NumericInput
+}) {
+  const factors: string[] = []
+  const tripsVariation = calculateVariation(input.currentTrips, input.historicalTrips).percent
+  const tonsVariation = calculateVariation(input.currentTons, input.historicalTons).percent
+  const fuelVariation = calculateVariation(input.currentFuelCost, input.historicalFuelCost).percent
+  if (tripsVariation != null && tripsVariation < 0) factors.push(`redução de ${Math.abs(tripsVariation).toFixed(1)}% nas viagens`)
+  if (tonsVariation != null && tonsVariation < 0) factors.push(`redução de ${Math.abs(tonsVariation).toFixed(1)}% nas toneladas`)
+  if (fuelVariation != null && fuelVariation > 0) factors.push(`aumento de ${fuelVariation.toFixed(1)}% no custo de combustível`)
+  if (toNumber(input.downtimeDays) > 0) factors.push(`${toNumber(input.downtimeDays)} dia(s) de indisponibilidade`)
+  if (toNumber(input.maintenanceCost) > 0) factors.push(`custo de manutenção de R$ ${toNumber(input.maintenanceCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
+  return factors
+}
