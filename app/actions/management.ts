@@ -52,7 +52,9 @@ export async function getManagementData() {
     litersPer100Km: dailyOperations.litersPer100Km,
   }
   const [fleet, team] = await Promise.all([
-    canViewCompanyData ? db.select(fleetSelection).from(trucks).orderBy(desc(trucks.createdAt)) : db.select(fleetSelection).from(trucks).where(eq(trucks.userId, userId)).orderBy(desc(trucks.createdAt)),
+    // The current deployment represents one transport company, so its authenticated
+    // users share the fleet while records remain attributed to the submitting user.
+    db.select(fleetSelection).from(trucks).orderBy(desc(trucks.createdAt)),
     canViewCompanyData ? db.select(teamSelection).from(drivers).orderBy(desc(drivers.createdAt)) : db.select(teamSelection).from(drivers).where(eq(drivers.userId, userId)).orderBy(desc(drivers.createdAt)),
   ])
   const operations = canViewCompanyData

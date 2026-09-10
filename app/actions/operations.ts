@@ -3,7 +3,7 @@
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { dailyOperations, fuelRecords, trucks } from '@/lib/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { calculateFuelCost, calculateOperationMetrics } from '@/lib/erp/calculations'
@@ -15,9 +15,7 @@ async function getContext() {
 }
 async function assertTruckAccess(userId: string, role: string, truckId: number) {
   if (!Number.isInteger(truckId) || truckId <= 0) throw new Error('Selecione um caminhão válido')
-  const [truck] = role === 'admin' || role === 'accountant'
-    ? await db.select({ id: trucks.id }).from(trucks).where(eq(trucks.id, truckId)).limit(1)
-    : await db.select({ id: trucks.id }).from(trucks).where(and(eq(trucks.id, truckId), eq(trucks.userId, userId))).limit(1)
+  const [truck] = await db.select({ id: trucks.id }).from(trucks).where(eq(trucks.id, truckId)).limit(1)
   if (!truck) throw new Error('Caminhão não encontrado para esta conta')
 }
 function validNumber(value: number | undefined): value is number { return value !== undefined && Number.isFinite(value) }
