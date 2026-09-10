@@ -20,9 +20,11 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
         ? await authClient.signUp.email({ name, email, password })
         : await authClient.signIn.email({ email, password })
       if (result.error) {
-        setError(mode === 'sign-up'
-          ? 'Não foi possível criar a conta. Verifique a conexão com o banco de dados e tente novamente.'
-          : result.error.message || 'E-mail ou senha inválidos.')
+        const detail = result.error.message || ''
+        const databaseUnavailable = /timeout|connect|database|query|server_error/i.test(detail)
+        setError(databaseUnavailable
+          ? 'O banco Railway não respondeu a tempo. Confirme se o serviço está ativo e tente novamente em alguns segundos.'
+          : mode === 'sign-up' ? 'Não foi possível criar a conta. Verifique os dados e tente novamente.' : detail || 'E-mail ou senha inválidos.')
         return
       }
       router.push('/')
