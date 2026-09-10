@@ -17,13 +17,47 @@ async function getContext() {
 export async function getManagementData() {
   const { userId, role } = await getContext()
   const canViewCompanyData = role === 'admin' || role === 'accountant'
+  const fleetSelection = {
+    id: trucks.id,
+    code: trucks.code,
+    plate: trucks.plate,
+    model: trucks.model,
+    brand: trucks.brand,
+    status: trucks.status,
+    currentDriver: trucks.currentDriver,
+    currentKm: trucks.currentKm,
+    benchmarkKmL: trucks.benchmarkKmL,
+  }
+  const teamSelection = {
+    id: drivers.id,
+    name: drivers.name,
+    email: drivers.email,
+    phone: drivers.phone,
+    employeeId: drivers.employeeId,
+    assignedTruckId: drivers.assignedTruckId,
+    status: drivers.status,
+  }
+  const operationSelection = {
+    id: dailyOperations.id,
+    truckId: dailyOperations.truckId,
+    driverName: dailyOperations.driverName,
+    operationDate: dailyOperations.operationDate,
+    km: dailyOperations.km,
+    trips: dailyOperations.trips,
+    tons: dailyOperations.tons,
+    liters: dailyOperations.liters,
+    kmPerTrip: dailyOperations.kmPerTrip,
+    tonsPerTrip: dailyOperations.tonsPerTrip,
+    kmPerLiter: dailyOperations.kmPerLiter,
+    litersPer100Km: dailyOperations.litersPer100Km,
+  }
   const [fleet, team] = await Promise.all([
-    canViewCompanyData ? db.select().from(trucks).orderBy(desc(trucks.createdAt)) : db.select().from(trucks).where(eq(trucks.userId, userId)).orderBy(desc(trucks.createdAt)),
-    canViewCompanyData ? db.select().from(drivers).orderBy(desc(drivers.createdAt)) : db.select().from(drivers).where(eq(drivers.userId, userId)).orderBy(desc(drivers.createdAt)),
+    canViewCompanyData ? db.select(fleetSelection).from(trucks).orderBy(desc(trucks.createdAt)) : db.select(fleetSelection).from(trucks).where(eq(trucks.userId, userId)).orderBy(desc(trucks.createdAt)),
+    canViewCompanyData ? db.select(teamSelection).from(drivers).orderBy(desc(drivers.createdAt)) : db.select(teamSelection).from(drivers).where(eq(drivers.userId, userId)).orderBy(desc(drivers.createdAt)),
   ])
   const operations = canViewCompanyData
-    ? await db.select().from(dailyOperations).orderBy(desc(dailyOperations.operationDate))
-    : await db.select().from(dailyOperations).where(eq(dailyOperations.userId, userId)).orderBy(desc(dailyOperations.operationDate))
+    ? await db.select(operationSelection).from(dailyOperations).orderBy(desc(dailyOperations.operationDate))
+    : await db.select(operationSelection).from(dailyOperations).where(eq(dailyOperations.userId, userId)).orderBy(desc(dailyOperations.operationDate))
   return { fleet, team, operations }
 }
 
