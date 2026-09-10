@@ -20,7 +20,9 @@ export function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
         ? await authClient.signUp.email({ name, email, password })
         : await authClient.signIn.email({ email, password })
       if (result.error) {
-        setError(result.error.message || 'E-mail ou senha inválidos.')
+        setError(mode === 'sign-up'
+          ? 'Não foi possível criar a conta. Verifique a conexão com o banco de dados e tente novamente.'
+          : result.error.message || 'E-mail ou senha inválidos.')
         return
       }
       router.push('/')
