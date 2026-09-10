@@ -1,17 +1,16 @@
 'use server'
 
-import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { alertRules, dailyOperations, drivers, fuelRecords, notifications, trucks } from '@/lib/db/schema'
 import { and, eq, or } from 'drizzle-orm'
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { getCurrentUser } from '@/lib/current-user'
 import { calculateFuelCost, calculateOperationMetrics } from '@/lib/erp/calculations'
 
 async function getContext() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) throw new Error('Não autorizado')
-  return { userId: session.user.id, email: session.user.email, name: session.user.name, role: (session.user as { role?: string }).role ?? 'driver' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser) throw new Error('Não autorizado')
+  return { userId: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role }
 }
 async function assertTruckAccess(userId: string, email: string, name: string, role: string, truckId: number) {
   if (!Number.isInteger(truckId) || truckId <= 0) throw new Error('Selecione um caminhão válido')

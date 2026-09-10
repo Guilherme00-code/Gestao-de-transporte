@@ -1,17 +1,15 @@
 'use server'
 
-import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { dailyOperations, drivers, trucks } from '@/lib/db/schema'
 import { desc, eq, or } from 'drizzle-orm'
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { getCurrentUser } from '@/lib/current-user'
 
 async function getContext() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) throw new Error('Não autorizado')
-  const role = (session.user as { role?: string }).role ?? 'admin'
-  return { userId: session.user.id, email: session.user.email, name: session.user.name, role }
+  const currentUser = await getCurrentUser()
+  if (!currentUser) throw new Error('Não autorizado')
+  return { userId: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role }
 }
 
 export async function getManagementData() {

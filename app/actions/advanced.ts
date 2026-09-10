@@ -1,10 +1,9 @@
 'use server'
 
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getCurrentUser } from '@/lib/current-user'
 import {
   alertRules,
   benchmarks,
@@ -20,10 +19,9 @@ import {
 } from '@/lib/db/schema'
 
 async function getContext() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) throw new Error('Não autorizado')
-  const role = (session.user as { role?: string }).role ?? 'driver'
-  return { userId: session.user.id, role }
+  const currentUser = await getCurrentUser()
+  if (!currentUser) throw new Error('Não autorizado')
+  return { userId: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role }
 }
 
 function companyOnly(role: string) {
@@ -62,7 +60,7 @@ export async function createPreventiveRule(input: {
   intervalKm?: number
   intervalDays?: number
 }) {
-  const { userId, role } = await getContext()
+  const { userId, email, name, role } = await getContext()
   companyOnly(role)
   if (!input.intervalKm && !input.intervalDays) throw new Error('Informe intervalo por KM ou por dias')
   await db.insert(preventiveMaintenanceRules).values({
@@ -103,11 +101,10 @@ export async function createIncident(input: {
   category: string
   description: string
 }) {
-  const { userId, role } = await getContext()
+  const { userId, email, name, role } = await getContext()
   if (role === 'accountant') throw new Error('Contadores possuem acesso de consulta nesta área')
   if (role === 'driver') {
-    const session = await auth.api.getSession({ headers: await headers() })
-    const [assigned] = await db.select({ id: drivers.id }).from(drivers).innerJoin(trucks, eq(drivers.assignedTruckId, trucks.id)).where(and(eq(trucks.id, input.truckId || 0), or(eq(drivers.email, session?.user.email ?? ''), eq(drivers.name, session?.user.name ?? '')))).limit(1)
+    const [assigned] = await db.select({ id: drivers.id }).from(drivers).innerJoin(trucks, eq(drivers.assignedTruckId, trucks.id)).where(and(eq(trucks.id, input.truckId || 0), or(eq(drivers.email, email), eq(drivers.name, name)))).limit(1)
     if (!assigned) throw new Error('Ocorrência limitada ao caminhão atribuído')
   }
   await db.insert(incidents).values({

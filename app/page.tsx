@@ -1,16 +1,15 @@
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Dashboard from '@/components/dashboard'
 import EmployeeDashboard from '@/components/employee-dashboard'
 import { getManagementData } from '@/app/actions/management'
-import { auth } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/current-user'
 
 export default async function Page() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) redirect('/sign-in')
-  const role = (session.user as { role?: string }).role
+  const user = await getCurrentUser()
+  if (!user) redirect('/sign-in')
+  const role = user.role
   const initialRole = role === 'driver' ? 'Funcionário' : role === 'accountant' ? 'Contador' : 'Administrador'
   const data = await getManagementData()
-  if (role === 'driver') return <EmployeeDashboard userName={session.user.name} fleet={data.fleet} operations={data.operations} />
-  return <Dashboard initialRole={initialRole} userName={session.user.name} fleet={data.fleet} team={data.team} operations={data.operations} />
+  if (role === 'driver') return <EmployeeDashboard userName={user.name} fleet={data.fleet} operations={data.operations} />
+  return <Dashboard initialRole={initialRole} userName={user.name} fleet={data.fleet} team={data.team} operations={data.operations} />
 }

@@ -1,10 +1,9 @@
 'use server'
 
 import { and, desc, eq, isNull } from 'drizzle-orm'
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { getCurrentUser } from '@/lib/current-user'
 import {
   alerts,
   auditLogs,
@@ -21,10 +20,9 @@ import {
 type Role = 'admin' | 'accountant' | 'driver'
 
 async function getContext() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) throw new Error('Não autorizado')
-  const role = ((session.user as { role?: string }).role ?? 'driver') as Role
-  return { userId: session.user.id, role }
+  const currentUser = await getCurrentUser()
+  if (!currentUser) throw new Error('Não autorizado')
+  return { userId: currentUser.id, role: currentUser.role as Role }
 }
 
 async function assertPeriodOpen(userId: string, value: Date) {
