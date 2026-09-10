@@ -74,4 +74,10 @@ body { background: radial-gradient(circle at 75% -10%, oklch(0.97 0.035 88 / 55%
 .erp-nav a, .nav-item { transition: background .16s ease, color .16s ease, transform .16s ease; }
 .erp-nav a:hover, .nav-item:hover { transform: translateX(2px); }
 .primary-button:disabled, .secondary-button:disabled { cursor: not-allowed; filter: grayscale(.25); opacity: .55; }
+.erp-guide { align-items: center; background: linear-gradient(135deg, color-mix(in oklch, var(--primary) 9%, var(--card)), var(--card)); border: 1px solid color-mix(in oklch, var(--primary) 18%, var(--border)); border-radius: 16px; display: flex; gap: 24px; justify-content: space-between; padding: 20px 22px; }
+.erp-guide-steps { display: flex; flex-wrap: wrap; gap: 9px; }
+.erp-guide-steps span { align-items: center; background: var(--card); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); display: inline-flex; font-size: 11px; gap: 7px; padding: 7px 10px; white-space: nowrap; }
+.erp-guide-steps b { align-items: center; background: var(--primary); border-radius: 50%; color: var(--primary-foreground); display: inline-flex; font-size: 10px; height: 19px; justify-content: center; width: 19px; }
+.erp-content > section + section { border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent); }
+@media (max-width: 800px) { .erp-guide { align-items: flex-start; flex-direction: column; } }
 @keyframes workspace-in { from { opacity: .65; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }

@@ -62,6 +62,7 @@ export default function AdvancedModules({ fleet, team, data, role }: { fleet: Fl
         </div>
         {role === 'accountant' && <div className="mb-5 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">Modo contador: benchmarks, regras e ocorrências são administrados pelo proprietário. Esta área está disponível para consulta.</div>}
         {message && <div className="mb-5 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
+        {role === 'admin' && <section className="erp-guide mb-6"><div><p className="eyebrow text-primary">Administração</p><h3 className="mt-1 text-lg font-semibold">Organize sua empresa em quatro passos</h3><p className="mt-1 text-sm text-muted-foreground">Cadastre usuários, vincule motoristas aos caminhões, configure regras e acompanhe os indicadores.</p></div><div className="erp-guide-steps"><span><b>1</b> Usuários</span><span><b>2</b> Frota</span><span><b>3</b> Regras</span><span><b>4</b> Indicadores</span></div></section>}
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="panel">
             <h3 className="panel-title">Manutenção preventiva</h3>
