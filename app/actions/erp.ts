@@ -140,6 +140,7 @@ export async function createTrip(input: {
 export async function createMaintenance(input: {
   truckId: number
   maintenanceDate: string
+  maintenanceType?: string
   problem: string
   description?: string
   partsCost?: number
@@ -160,6 +161,7 @@ export async function createMaintenance(input: {
     userId,
     truckId: input.truckId,
     maintenanceDate,
+    maintenanceType: input.maintenanceType?.trim() || 'corrective',
     problem: requiredText(input.problem, 'Problema'),
     description: input.description?.trim() || null,
     partsCost: nonNegative(partsCost, 'Custo de peças'),

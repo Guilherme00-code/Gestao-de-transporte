@@ -35,7 +35,7 @@ type FormState = Record<string, string>
 
 const initial: FormState = {
   truckId: '', driverId: '', date: '', origin: '', destination: '', km: '', tons: '',
-  problem: '', description: '', partsCost: '', laborCost: '', servicesCost: '', workshop: '',
+  problem: '', maintenanceType: 'corrective', description: '', partsCost: '', laborCost: '', servicesCost: '', workshop: '',
   reason: '', startedAt: '', endedAt: '', category: '', amount: '', revenueDate: '',
   month: '', alertTitle: '', alertMessage: '', alertSeverity: 'warning',
 }
@@ -75,6 +75,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
       ...data,
       tripRows: data.tripRows.filter(item => matches(item.tripDate)),
       maintenanceRows: data.maintenanceRows.filter(item => matches(item.maintenanceDate)),
+      downtimeRows: data.downtimeRows.filter(item => matches(item.startedAt)),
       expenseRows: data.expenseRows.filter(item => matches(item.expenseDate)),
       revenueRows: data.revenueRows.filter(item => matches(item.revenueDate)),
         fuelRows: data.fuelRows.filter(item => matches(item.recordDate)),
@@ -86,6 +87,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     trips: filtered.tripRows.length,
     maintenance: filtered.maintenanceRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
     fuel: filtered.fuelRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
+    openDowntime: filtered.downtimeRows.filter(item => item.status === 'open').length,
   }
   const exportCsv = () => {
     const rows = [
@@ -138,6 +140,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
           <div className="metric-card"><p className="eyebrow">Faturamento</p><p className="mt-3 text-2xl font-semibold">R$ {totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas registradas</p></div>
           <div className="metric-card"><p className="eyebrow">Despesas</p><p className="mt-3 text-2xl font-semibold">R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Custos operacionais</p></div>
           <div className="metric-card"><p className="eyebrow">Combustível</p><p className="mt-3 text-2xl font-semibold">R$ {totals.fuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">{filtered.fuelRows.reduce((sum, item) => sum + Number(item.liters), 0).toLocaleString('pt-BR')} litros</p></div>
+          <div className="metric-card"><p className="eyebrow">Caminhões parados</p><p className="mt-3 text-2xl font-semibold">{totals.openDowntime}</p><p className="mt-3 text-xs text-muted-foreground">Indisponibilidades abertas</p></div>
           <div className="metric-card"><p className="eyebrow">Resultado</p><p className="mt-3 text-2xl font-semibold">R$ {(totals.revenue - totals.expenses - totals.maintenance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas menos custos</p></div>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
@@ -156,10 +159,11 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
           </section>
           <section className="panel">
             <div className="panel-header"><div><h2 className="panel-title">Manutenção</h2><p className="panel-subtitle">Custos separados e total calculado</p></div></div>
-            <form className="grid gap-3 p-5 sm:grid-cols-2" onSubmit={event => run(event, () => createMaintenance({ truckId, maintenanceDate: form.date, problem: form.problem, description: form.description, partsCost: Number(form.partsCost || 0), laborCost: Number(form.laborCost || 0), servicesCost: Number(form.servicesCost || 0), workshop: form.workshop }))}>
+            <form className="grid gap-3 p-5 sm:grid-cols-2" onSubmit={event => run(event, () => createMaintenance({ truckId, maintenanceDate: form.date, maintenanceType: form.maintenanceType, problem: form.problem, description: form.description, partsCost: Number(form.partsCost || 0), laborCost: Number(form.laborCost || 0), servicesCost: Number(form.servicesCost || 0), workshop: form.workshop }))}>
               <select required className="sm:col-span-2" value={form.truckId} onChange={event => set('truckId', event.target.value)}><option value="">Caminhão</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code} · {item.plate}</option>)}</select>
               <input required type="date" value={form.date} onChange={event => set('date', event.target.value)} />
               <input required placeholder="Problema" value={form.problem} onChange={event => set('problem', event.target.value)} />
+              <select value={form.maintenanceType} onChange={event => set('maintenanceType', event.target.value)}><option value="corrective">Corretiva</option><option value="preventive">Preventiva</option><option value="tire">Pneus</option><option value="oil">Óleo</option></select>
               <input placeholder="Oficina" value={form.workshop} onChange={event => set('workshop', event.target.value)} />
               <input placeholder="Descrição" value={form.description} onChange={event => set('description', event.target.value)} />
               <input min="0" step="0.01" type="number" placeholder="Peças" value={form.partsCost} onChange={event => set('partsCost', event.target.value)} />
