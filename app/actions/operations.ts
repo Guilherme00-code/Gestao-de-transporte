@@ -2,7 +2,7 @@
 
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { dailyOperations, drivers, fuelRecords, trucks } from '@/lib/db/schema'
+import { alertRules, dailyOperations, drivers, fuelRecords, notifications, trucks } from '@/lib/db/schema'
 import { and, eq, or } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
@@ -30,6 +30,16 @@ export async function createDailyOperation(input: { truckId: number; driverName:
   const metrics = calculateOperationMetrics(input)
   const driverName = role === 'driver' ? name : input.driverName.trim()
   await db.insert(dailyOperations).values({ userId, truckId: input.truckId, driverName, operationDate: new Date(`${input.operationDate}T00:00:00`), kmInitial: input.kmInitial == null ? null : String(input.kmInitial), kmFinal: input.kmFinal == null ? null : String(input.kmFinal), km: String(metrics.km), trips: String(metrics.trips), tons: String(metrics.tons), liters: String(metrics.liters), kmPerTrip: String(metrics.kmPerTrip ?? 0), tonsPerTrip: String(metrics.tonsPerTrip ?? 0), kmPerLiter: String(metrics.kmPerLiter ?? 0), litersPer100Km: String(metrics.litersPer100Km ?? 0), notes: input.notes?.trim() || null })
+  if (metrics.kmPerLiter != null && metrics.kmPerLiter > 0) {
+    const [truck] = await db.select({ benchmarkKmL: trucks.benchmarkKmL }).from(trucks).where(eq(trucks.id, input.truckId)).limit(1)
+    const [rule] = await db.select({ warningPercent: alertRules.warningPercent, criticalPercent: alertRules.criticalPercent }).from(alertRules).where(and(eq(alertRules.userId, userId), eq(alertRules.category, 'fuel'), eq(alertRules.metric, 'km_l'), eq(alertRules.active, true))).limit(1)
+    const benchmark = Number(truck?.benchmarkKmL ?? 0)
+    const deviation = benchmark > 0 ? ((benchmark - metrics.kmPerLiter) / benchmark) * 100 : 0
+    if (rule && deviation >= Number(rule.warningPercent)) {
+      const severity = deviation >= Number(rule.criticalPercent) ? 'critical' : 'warning'
+      await db.insert(notifications).values({ userId, category: 'fuel', title: severity === 'critical' ? 'Consumo muito abaixo da referência' : 'Consumo abaixo da referência', message: `O consumo desta operação ficou ${deviation.toFixed(1)}% abaixo da referência configurada.` })
+    }
+  }
   revalidatePath('/')
 }
 
