@@ -23,12 +23,12 @@ import {
 type FleetItem = { id: number; code: string; plate: string; brand: string; model: string }
 type DriverItem = { id: number; name: string }
 type ErpData = {
-  tripRows: Array<{ id: number; truckId: number; tripDate: string | Date; origin: string; destination: string; km: string; tons: string }>
-  maintenanceRows: Array<{ id: number; maintenanceDate: string | Date; problem: string; totalCost: string; status: string }>
-  downtimeRows: Array<{ id: number; startedAt: string | Date; reason: string; status: string }>
-  expenseRows: Array<{ id: number; expenseDate: string | Date; category: string; amount: string }>
-  revenueRows: Array<{ id: number; revenueDate: string | Date; amount: string; origin: string | null; destination: string | null }>
-  fuelRows: Array<{ id: number; recordDate: string | Date; liters: string; totalCost: string; station: string | null; driverName: string }>
+  tripRows: Array<{ id: number; truckId: number; driverId: number | null; tripDate: string | Date; origin: string; destination: string; km: string; tons: string }>
+  maintenanceRows: Array<{ id: number; truckId: number; maintenanceDate: string | Date; problem: string; totalCost: string; status: string }>
+  downtimeRows: Array<{ id: number; truckId: number; startedAt: string | Date; reason: string; status: string }>
+  expenseRows: Array<{ id: number; truckId: number | null; expenseDate: string | Date; category: string; amount: string }>
+  revenueRows: Array<{ id: number; truckId: number | null; revenueDate: string | Date; amount: string; origin: string | null; destination: string | null }>
+  fuelRows: Array<{ id: number; truckId: number; recordDate: string | Date; liters: string; totalCost: string; station: string | null; driverName: string }>
   alertRows: Array<{ id: number; severity: string; title: string; message: string }>
   closureRows: Array<{ id: number; referenceMonth: string | Date; status: string }>
   auditRows: Array<{ id: number; entity: string; entityId: string; action: string; reason: string | null; createdAt: string | Date }>
@@ -62,6 +62,9 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
   const [period, setPeriod] = useState('')
+  const [historyWindow, setHistoryWindow] = useState('all')
+  const [reportTruckId, setReportTruckId] = useState('')
+  const [reportDriverId, setReportDriverId] = useState('')
   const [showComparison, setShowComparison] = useState(false)
   const set = (key: string, value: string) => setForm(current => ({ ...current, [key]: value }))
   const run = async (event: FormEvent, action: () => Promise<void>) => {
@@ -82,18 +85,33 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
   const truckId = Number(form.truckId)
   const driverId = Number(form.driverId)
   const filtered = useMemo(() => {
-    if (!period) return data
-    const matches = (value: string | Date) => formatDate(value).slice(3).split('/').reverse().join('-') === period
+    const selectedMonth = period ? new Date(`${period}-01T00:00:00`) : null
+    const windowStart = historyWindow !== 'all'
+      ? (() => {
+          const date = selectedMonth ? new Date(selectedMonth) : new Date()
+          date.setMonth(date.getMonth() - Number(historyWindow) + 1)
+          date.setDate(1)
+          return date
+        })()
+      : null
+    const matches = (value: string | Date) => {
+      const date = new Date(value)
+      if (selectedMonth && historyWindow === 'all') return formatDate(value).slice(3).split('/').reverse().join('-') === period
+      if (windowStart) return date >= windowStart && (!selectedMonth || date <= new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59))
+      return true
+    }
+    const truckMatches = (truckId: number) => !reportTruckId || String(truckId) === reportTruckId
+    const driverMatches = (driverId: number | null) => !reportDriverId || String(driverId ?? '') === reportDriverId
     return {
       ...data,
-      tripRows: data.tripRows.filter(item => matches(item.tripDate)),
-      maintenanceRows: data.maintenanceRows.filter(item => matches(item.maintenanceDate)),
-      downtimeRows: data.downtimeRows.filter(item => matches(item.startedAt)),
-      expenseRows: data.expenseRows.filter(item => matches(item.expenseDate)),
-      revenueRows: data.revenueRows.filter(item => matches(item.revenueDate)),
-        fuelRows: data.fuelRows.filter(item => matches(item.recordDate)),
+      tripRows: data.tripRows.filter(item => matches(item.tripDate) && truckMatches(item.truckId) && driverMatches(item.driverId)),
+      maintenanceRows: data.maintenanceRows.filter(item => matches(item.maintenanceDate) && truckMatches(item.truckId)),
+      downtimeRows: data.downtimeRows.filter(item => matches(item.startedAt) && truckMatches(item.truckId)),
+      expenseRows: data.expenseRows.filter(item => matches(item.expenseDate) && (!reportTruckId || String(item.truckId ?? '') === reportTruckId)),
+      revenueRows: data.revenueRows.filter(item => matches(item.revenueDate) && (!reportTruckId || String(item.truckId ?? '') === reportTruckId)),
+      fuelRows: data.fuelRows.filter(item => matches(item.recordDate) && truckMatches(item.truckId) && (!reportDriverId || item.driverName === team.find(driver => String(driver.id) === reportDriverId)?.name)),
     }
-  }, [data, period])
+  }, [data, period, historyWindow, reportTruckId, reportDriverId, team])
   const totals = {
     revenue: sumNumbers(filtered.revenueRows, item => Number(item.amount)),
     expenses: sumNumbers(filtered.expenseRows, item => Number(item.amount)),
@@ -111,6 +129,17 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     return ranking
   }, {})
   const rankingRows = Object.entries(truckRanking).sort(([, left], [, right]) => right.tons - left.tons).slice(0, 10)
+  const driverRanking = filtered.tripRows.reduce<Record<string, { trips: number; tons: number; km: number }>>((ranking, item) => {
+    const driver = team.find(candidate => candidate.id === item.driverId)
+    const key = driver?.name ?? 'Motorista não informado'
+    const current = ranking[key] ?? { trips: 0, tons: 0, km: 0 }
+    current.trips += 1
+    current.tons += Number(item.tons)
+    current.km += Number(item.km)
+    ranking[key] = current
+    return ranking
+  }, {})
+  const driverRankingRows = Object.entries(driverRanking).sort(([, left], [, right]) => right.tons - left.tons).slice(0, 10)
   const financial = calculateFinancialMetrics({ revenue: totals.revenue, costs: totals.expenses + totals.maintenance })
   const previousPeriod = period ? (() => { const date = new Date(`${period}-01T00:00:00`); date.setMonth(date.getMonth() - 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` })() : ''
   const previousMatches = (value: string | Date) => previousPeriod && formatDate(value).slice(3).split('/').reverse().join('-') === previousPeriod
@@ -198,7 +227,10 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
         {role === 'accountant' && <div className="mb-6 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">Modo contador: consulte os dados, aplique filtros e faça o fechamento mensal. Alterações operacionais são realizadas pelo administrador.</div>}
         {message && <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
         <div className="mb-6 flex flex-wrap items-center gap-3">
-          <label className="text-sm text-muted-foreground">Período <input type="month" value={period} onChange={event => setPeriod(event.target.value)} /></label>
+          <label className="text-sm text-muted-foreground">Mês <input type="month" value={period} onChange={event => setPeriod(event.target.value)} /></label>
+          <select className="period-select" value={historyWindow} onChange={event => setHistoryWindow(event.target.value)}><option value="all">Mês selecionado</option><option value="3">Últimos 3 meses</option><option value="6">Últimos 6 meses</option><option value="12">Últimos 12 meses</option></select>
+          <select className="period-select" value={reportTruckId} onChange={event => setReportTruckId(event.target.value)}><option value="">Todos os caminhões</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code} · {item.plate}</option>)}</select>
+          <select className="period-select" value={reportDriverId} onChange={event => setReportDriverId(event.target.value)}><option value="">Todos os motoristas</option>{team.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           <button className="secondary-button" type="button" onClick={exportCsv}>Exportar CSV</button>
           <button className="secondary-button" type="button" onClick={exportExcel}>Exportar Excel</button>
           <button className="secondary-button" type="button" onClick={() => window.print()}>Imprimir / PDF</button>
@@ -300,6 +332,10 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
         <section className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Ranking operacional</h2><p className="panel-subtitle">Ordenado por toneladas registradas no período selecionado</p></div></div>
           {rankingRows.length ? <div className="table-scroll"><table><thead><tr><th>Posição</th><th>Caminhão</th><th>Viagens</th><th>Toneladas</th><th>KM</th></tr></thead><tbody>{rankingRows.map(([truckId, row], index) => <tr key={truckId}><td>{index + 1}</td><td>#{truckId}</td><td>{row.trips}</td><td>{row.tons.toLocaleString('pt-BR')}</td><td>{row.km.toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-muted-foreground">Dados insuficientes para ranking neste período.</p>}
+        </section>
+        <section className="panel mt-6">
+          <div className="panel-header"><div><h2 className="panel-title">Ranking de motoristas</h2><p className="panel-subtitle">Ordenado por toneladas no filtro selecionado; não representa avaliação individual.</p></div></div>
+          {driverRankingRows.length ? <div className="table-scroll"><table><thead><tr><th>Motorista</th><th>Viagens</th><th>Toneladas</th><th>KM</th></tr></thead><tbody>{driverRankingRows.map(([name, row]) => <tr key={name}><td>{name}</td><td>{row.trips}</td><td>{row.tons.toLocaleString('pt-BR')}</td><td>{row.km.toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-muted-foreground">Dados insuficientes para ranking de motoristas.</p>}
         </section>
         <section id="configuracoes" className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Auditoria recente</h2><p className="panel-subtitle">Alterações importantes registradas pelo sistema</p></div></div>
