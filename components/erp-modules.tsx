@@ -22,7 +22,7 @@ import {
 type FleetItem = { id: number; code: string; plate: string; brand: string; model: string }
 type DriverItem = { id: number; name: string }
 type ErpData = {
-  tripRows: Array<{ id: number; tripDate: string | Date; origin: string; destination: string; km: string; tons: string }>
+  tripRows: Array<{ id: number; truckId: number; tripDate: string | Date; origin: string; destination: string; km: string; tons: string }>
   maintenanceRows: Array<{ id: number; maintenanceDate: string | Date; problem: string; totalCost: string; status: string }>
   downtimeRows: Array<{ id: number; startedAt: string | Date; reason: string; status: string }>
   expenseRows: Array<{ id: number; expenseDate: string | Date; category: string; amount: string }>
@@ -91,10 +91,22 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     fuel: filtered.fuelRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
     openDowntime: filtered.downtimeRows.filter(item => item.status === 'open').length,
   }
+  const truckRanking = filtered.tripRows.reduce<Record<string, { trips: number; tons: number; km: number }>>((ranking, item) => {
+    const current = ranking[String(item.truckId)] ?? { trips: 0, tons: 0, km: 0 }
+    current.trips += 1
+    current.tons += Number(item.tons)
+    current.km += Number(item.km)
+    ranking[String(item.truckId)] = current
+    return ranking
+  }, {})
+  const rankingRows = Object.entries(truckRanking).sort(([, left], [, right]) => right.tons - left.tons).slice(0, 10)
   const financial = calculateFinancialMetrics({ revenue: totals.revenue, costs: totals.expenses + totals.maintenance })
   const exportCsv = () => {
     const rows = [
       ['tipo', 'data', 'descricao', 'valor'],
+      ...filtered.tripRows.map(item => ['viagem', formatDate(item.tripDate), `${item.origin} -> ${item.destination}`, item.km]),
+      ...filtered.fuelRows.map(item => ['combustivel', formatDate(item.recordDate), item.station || 'Nao informado', item.totalCost]),
+      ...filtered.downtimeRows.map(item => ['parada', formatDate(item.startedAt), item.reason, item.status]),
       ...filtered.expenseRows.map(item => ['despesa', formatDate(item.expenseDate), item.category, item.amount]),
       ...filtered.revenueRows.map(item => ['faturamento', formatDate(item.revenueDate), `${item.origin || ''} -> ${item.destination || ''}`, item.amount]),
       ...filtered.maintenanceRows.map(item => ['manutencao', formatDate(item.maintenanceDate), item.problem, item.totalCost]),
@@ -213,6 +225,10 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
             <button className="primary-button" disabled={pending}>Fechar mês</button>
           </form>
           {data.closureRows.length > 0 && <div className="table-scroll px-5 pb-5"><table><thead><tr><th>Mês</th><th>Status</th></tr></thead><tbody>{data.closureRows.map(item => <tr key={item.id}><td>{formatDate(item.referenceMonth)}</td><td>{item.status}</td></tr>)}</tbody></table></div>}
+        </section>
+        <section className="panel mt-6">
+          <div className="panel-header"><div><h2 className="panel-title">Ranking operacional</h2><p className="panel-subtitle">Ordenado por toneladas registradas no período selecionado</p></div></div>
+          {rankingRows.length ? <div className="table-scroll"><table><thead><tr><th>Posição</th><th>Caminhão</th><th>Viagens</th><th>Toneladas</th><th>KM</th></tr></thead><tbody>{rankingRows.map(([truckId, row], index) => <tr key={truckId}><td>{index + 1}</td><td>#{truckId}</td><td>{row.trips}</td><td>{row.tons.toLocaleString('pt-BR')}</td><td>{row.km.toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-muted-foreground">Dados insuficientes para ranking neste período.</p>}
         </section>
         <section className="panel mt-6">
           <div className="panel-header"><div><h2 className="panel-title">Alertas operacionais</h2><p className="panel-subtitle">Registre riscos para acompanhamento administrativo</p></div></div>
