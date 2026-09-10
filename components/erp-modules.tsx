@@ -47,12 +47,21 @@ function formatDate(value: string | Date) {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value))
 }
 
+function ComparisonMetric({ label, value, help }: { label: string; value: string; help: string }) {
+  return <div className="metric-card"><p className="eyebrow">{label}</p><p className="mt-3 text-2xl font-semibold">{value}</p><p className="mt-3 text-xs text-muted-foreground">{help}</p></div>
+}
+
+function sumNumbers<T>(items: T[], getValue: (item: T) => number) {
+  return items.reduce<number>((sum, item) => sum + getValue(item), 0)
+}
+
 export default function ErpModules({ fleet, team, data, role }: Props) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>({ ...initial, truckId: String(fleet[0]?.id ?? ''), driverId: String(team[0]?.id ?? '') })
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
   const [period, setPeriod] = useState('')
+  const [showComparison, setShowComparison] = useState(false)
   const set = (key: string, value: string) => setForm(current => ({ ...current, [key]: value }))
   const run = async (event: FormEvent, action: () => Promise<void>) => {
     event.preventDefault()
@@ -85,11 +94,11 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
     }
   }, [data, period])
   const totals = {
-    revenue: filtered.revenueRows.reduce((sum, item) => sum + Number(item.amount), 0),
-    expenses: filtered.expenseRows.reduce((sum, item) => sum + Number(item.amount), 0),
+    revenue: sumNumbers(filtered.revenueRows, item => Number(item.amount)),
+    expenses: sumNumbers(filtered.expenseRows, item => Number(item.amount)),
     trips: filtered.tripRows.length,
-    maintenance: filtered.maintenanceRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
-    fuel: filtered.fuelRows.reduce((sum, item) => sum + Number(item.totalCost), 0),
+    maintenance: sumNumbers(filtered.maintenanceRows, item => Number(item.totalCost)),
+    fuel: sumNumbers(filtered.fuelRows, item => Number(item.totalCost)),
     openDowntime: filtered.downtimeRows.filter(item => item.status === 'open').length,
   }
   const truckRanking = filtered.tripRows.reduce<Record<string, { trips: number; tons: number; km: number }>>((ranking, item) => {
@@ -102,6 +111,11 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
   }, {})
   const rankingRows = Object.entries(truckRanking).sort(([, left], [, right]) => right.tons - left.tons).slice(0, 10)
   const financial = calculateFinancialMetrics({ revenue: totals.revenue, costs: totals.expenses + totals.maintenance })
+  const previousPeriod = period ? (() => { const date = new Date(`${period}-01T00:00:00`); date.setMonth(date.getMonth() - 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` })() : ''
+  const previousMatches = (value: string | Date) => previousPeriod && formatDate(value).slice(3).split('/').reverse().join('-') === previousPeriod
+  const previousTrips = previousPeriod ? data.tripRows.filter(item => previousMatches(item.tripDate)).length : 0
+  const previousTons = previousPeriod ? sumNumbers(data.tripRows.filter(item => previousMatches(item.tripDate)), item => Number(item.tons)) : 0
+  const variation = previousPeriod && previousTrips > 0 ? ((totals.trips - previousTrips) / previousTrips) * 100 : null
   const exportCsv = () => {
     const rows = [
       ['tipo', 'data', 'descricao', 'valor'],
@@ -149,13 +163,17 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <label className="text-sm text-muted-foreground">Período <input type="month" value={period} onChange={event => setPeriod(event.target.value)} /></label>
           <button className="secondary-button" type="button" onClick={exportCsv}>Exportar CSV</button>
+          <button className="secondary-button" type="button" onClick={() => window.print()}>Imprimir / PDF</button>
+          <button className="secondary-button" type="button" onClick={() => setShowComparison(value => !value)}>Comparar período</button>
           {period && <button className="secondary-button" type="button" onClick={() => setPeriod('')}>Limpar período</button>}
         </div>
+        {showComparison && <section className="panel mb-6"><div className="panel-header"><div><h2 className="panel-title">Comparação histórica</h2><p className="panel-subtitle">Período selecionado contra o mês anterior</p></div></div>{period ? <div className="grid gap-3 p-5 sm:grid-cols-3"><ComparisonMetric label="Viagens atuais" value={String(totals.trips)} help={`${variation == null ? 'Sem base histórica' : `${variation.toFixed(1)}% vs. mês anterior`}`} /><ComparisonMetric label="Viagens anteriores" value={String(previousTrips)} help={previousPeriod} /><ComparisonMetric label="Toneladas anteriores" value={previousTons.toLocaleString('pt-BR')} help={previousPeriod} /></div> : <p className="p-5 text-sm text-muted-foreground">Selecione um período mensal para comparar.</p>}</section>}
+        <section className="panel mb-6"><div className="panel-header"><div><h2 className="panel-title">Visão operacional</h2><p className="panel-subtitle">Distribuição dos registros no período selecionado</p></div></div><div className="chart-summary p-5"><div><span>Viagens</span><strong>{totals.trips}</strong><i style={{ width: `${Math.min(100, totals.trips * 8)}%` }} /></div><div><span>Toneladas</span><strong>{sumNumbers(filtered.tripRows, item => Number(item.tons)).toLocaleString('pt-BR')}</strong><i style={{ width: `${Math.min(100, sumNumbers(filtered.tripRows, item => Number(item.tons)) / 10)}%` }} /></div><div><span>Litros</span><strong>{sumNumbers(filtered.fuelRows, item => Number(item.liters)).toLocaleString('pt-BR')}</strong><i style={{ width: `${Math.min(100, sumNumbers(filtered.fuelRows, item => Number(item.liters)) / 10)}%` }} /></div></div></section>
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="metric-card"><p className="eyebrow">Viagens</p><p className="mt-3 text-2xl font-semibold">{totals.trips}</p><p className="mt-3 text-xs text-muted-foreground">Registros persistidos</p></div>
           <div className="metric-card"><p className="eyebrow">Faturamento</p><p className="mt-3 text-2xl font-semibold">R$ {totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas registradas</p></div>
           <div className="metric-card"><p className="eyebrow">Despesas</p><p className="mt-3 text-2xl font-semibold">R$ {totals.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Custos operacionais</p></div>
-          <div className="metric-card"><p className="eyebrow">Combustível</p><p className="mt-3 text-2xl font-semibold">R$ {totals.fuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">{filtered.fuelRows.reduce((sum, item) => sum + Number(item.liters), 0).toLocaleString('pt-BR')} litros</p></div>
+          <div className="metric-card"><p className="eyebrow">Combustível</p><p className="mt-3 text-2xl font-semibold">R$ {totals.fuel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">{sumNumbers(filtered.fuelRows, item => Number(item.liters)).toLocaleString('pt-BR')} litros</p></div>
           <div className="metric-card"><p className="eyebrow">Caminhões parados</p><p className="mt-3 text-2xl font-semibold">{totals.openDowntime}</p><p className="mt-3 text-xs text-muted-foreground">Indisponibilidades abertas</p></div>
           <div className="metric-card"><p className="eyebrow">Resultado</p><p className="mt-3 text-2xl font-semibold">R$ {financial.result.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p><p className="mt-3 text-xs text-muted-foreground">Receitas menos custos</p></div>
           <div className="metric-card"><p className="eyebrow">Margem</p><p className="mt-3 text-2xl font-semibold">{financial.marginPercent == null ? '—' : `${financial.marginPercent.toFixed(1)}%`}</p><p className="mt-3 text-xs text-muted-foreground">Resultado sobre faturamento</p></div>
@@ -222,8 +240,22 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
           <div className="panel-header"><div><h2 className="panel-title">Fechamento mensal</h2><p className="panel-subtitle">Trave o período conferido pelo contador</p></div></div>
           <form className="flex flex-wrap gap-3 p-5" onSubmit={event => run(event, () => startMonthlyReview(form.month))}>
             <input required type="month" value={form.month} onChange={event => set('month', event.target.value)} />
-            <button className="secondary-button" disabled={pending}>Iniciar conferência</button>
-            <button className="primary-button" disabled={pending}>Fechar mês</button>
+            <button className="secondary-button" disabled={pending || role === 'accountant'}>Iniciar conferência</button>
+            <button className="primary-button" type="button" disabled={pending || role === 'accountant'} onClick={() => {
+              if (!form.month) {
+                setMessage('Mês de referência é obrigatório')
+                return
+              }
+              setPending(true)
+              setMessage('')
+              closeMonthlyPeriod(form.month)
+                .then(() => {
+                  setMessage('Mês fechado com sucesso.')
+                  router.refresh()
+                })
+                .catch(error => setMessage(error instanceof Error ? error.message : 'Não foi possível fechar o mês'))
+                .finally(() => setPending(false))
+            }}>Fechar mês</button>
           </form>
           {data.closureRows.length > 0 && <div className="table-scroll px-5 pb-5"><table><thead><tr><th>Mês</th><th>Status</th></tr></thead><tbody>{data.closureRows.map(item => <tr key={item.id}><td>{formatDate(item.referenceMonth)}</td><td>{item.status}</td></tr>)}</tbody></table></div>}
         </section>
