@@ -16,6 +16,7 @@ import {
   trips,
   trucks,
   dailyOperations,
+  drivers,
 } from '@/lib/db/schema'
 
 type Role = 'admin' | 'accountant' | 'driver'
@@ -106,6 +107,59 @@ export async function getErpData() {
     db.select().from(auditLogs).where(role === 'driver' ? eq(auditLogs.userId, userId) : undefined).orderBy(desc(auditLogs.createdAt)).limit(50),
   ])
   return { tripRows, operationRows, maintenanceRows, downtimeRows, expenseRows, revenueRows, fuelRows, alertRows, closureRows, auditRows }
+}
+
+export async function importSpreadsheetData(input: {
+  truckId: number
+  driverId?: number
+  cana: Array<{ date: string; tons: number; city: string; km: number; departureTime?: string }>
+  fuel: Array<{ date: string; odometer: number; km: number; liters: number; average?: number; station?: string }>
+}) {
+  const { userId, role } = await getContext()
+  assertAdminRole(role)
+  await assertTruckAccess(userId, role, input.truckId)
+  if (!input.cana.length && !input.fuel.length) throw new Error('A planilha não contém linhas válidas para importar')
+  const [driver] = input.driverId
+    ? await db.select({ id: drivers.id, name: drivers.name }).from(drivers).where(eq(drivers.id, input.driverId)).limit(1)
+    : []
+  if (input.driverId && !driver) throw new Error('Motorista selecionado não encontrado')
+
+  for (const row of input.cana) {
+    const tripDate = dateValue(row.date, 'Data da cana')
+    await db.insert(trips).values({
+      userId,
+      truckId: input.truckId,
+      driverId: input.driverId || null,
+      tripDate,
+      origin: requiredText(row.city, 'Cidade'),
+      destination: 'Usina',
+      km: positive(row.km, 'Distância'),
+      tons: nonNegative(row.tons, 'Peso'),
+      startedAt: row.departureTime ? new Date(`${row.date}T${row.departureTime}`) : null,
+      notes: 'Importado da planilha de cana',
+    })
+  }
+  for (const row of input.fuel) {
+    const recordDate = dateValue(row.date, 'Data do abastecimento')
+    const liters = positive(row.liters, 'Litros')
+    const km = positive(row.km, 'KM rodados')
+    await db.insert(fuelRecords).values({
+      userId,
+      truckId: input.truckId,
+      driverName: driver?.name ?? 'Importação de planilha',
+      recordDate,
+      km,
+      liters,
+      pricePerLiter: '0',
+      totalCost: '0',
+      costPerKm: '0',
+      station: row.station?.trim() || 'Usina',
+      fuelType: 'Diesel',
+    })
+  }
+  revalidatePath('/erp')
+  revalidatePath('/')
+  return { trips: input.cana.length, fuelRecords: input.fuel.length }
 }
 
 export async function createTrip(input: {

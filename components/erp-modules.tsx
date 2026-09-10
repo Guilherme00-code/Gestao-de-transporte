@@ -20,6 +20,7 @@ import {
   deleteTrip,
 } from '@/app/actions/erp'
 import { Activity, Banknote, Fuel, Route, Truck, Wrench } from 'lucide-react'
+import SpreadsheetImport from '@/components/spreadsheet-import'
 
 type FleetItem = { id: number; code: string; plate: string; brand: string; model: string }
 type DriverItem = { id: number; name: string }
@@ -233,6 +234,7 @@ export default function ErpModules({ fleet, team, data, role }: Props) {
         </div>
         {role === 'accountant' && <div className="mb-6 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">Modo contador: consulte os dados, aplique filtros e faça o fechamento mensal. Alterações operacionais são realizadas pelo administrador.</div>}
         {message && <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
+        {role === 'admin' && <div className="mb-6"><SpreadsheetImport fleet={fleet} team={team} /></div>}
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <label className="text-sm text-muted-foreground">Mês <input type="month" value={period} onChange={event => setPeriod(event.target.value)} /></label>
           <select className="period-select" value={historyWindow} onChange={event => setHistoryWindow(event.target.value)}><option value="all">Mês selecionado</option><option value="3">Últimos 3 meses</option><option value="6">Últimos 6 meses</option><option value="12">Últimos 12 meses</option></select>
