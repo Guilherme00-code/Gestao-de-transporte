@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   createAlertRule,
   createBenchmark,
@@ -20,6 +21,7 @@ type AdvancedData = {
 }
 
 export default function AdvancedModules({ fleet, team, data }: { fleet: FleetItem[]; team: DriverItem[]; data: AdvancedData }) {
+  const router = useRouter()
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
   const [truckId, setTruckId] = useState(String(fleet[0]?.id ?? ''))
@@ -28,7 +30,7 @@ export default function AdvancedModules({ fleet, team, data }: { fleet: FleetIte
     event.preventDefault()
     setPending(true)
     setMessage('')
-    try { await action(); setMessage('Registro avançado salvo com sucesso.'); }
+    try { await action(); setMessage('Registro avançado salvo com sucesso.'); router.refresh() }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível salvar') }
     finally { setPending(false) }
   }

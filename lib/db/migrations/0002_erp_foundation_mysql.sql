@@ -1,21 +1,17 @@
-ALTER TABLE trucks
-  ADD COLUMN IF NOT EXISTS year int NULL,
-  ADD COLUMN IF NOT EXISTS vin varchar(64) NULL,
-  ADD COLUMN IF NOT EXISTS configuration varchar(128) NULL,
-  ADD COLUMN IF NOT EXISTS fuel_type varchar(64) NULL,
-  ADD COLUMN IF NOT EXISTS load_capacity_tons decimal(10,2) NULL;
+ALTER TABLE trucks ADD COLUMN year int NULL;
+ALTER TABLE trucks ADD COLUMN vin varchar(64) NULL;
+ALTER TABLE trucks ADD COLUMN configuration varchar(128) NULL;
+ALTER TABLE trucks ADD COLUMN fuel_type varchar(64) NULL;
+ALTER TABLE trucks ADD COLUMN load_capacity_tons decimal(10,2) NULL;
 
-ALTER TABLE drivers
-  ADD COLUMN IF NOT EXISTS hire_date date NULL,
-  ADD COLUMN IF NOT EXISTS notes text NULL;
+ALTER TABLE drivers ADD COLUMN hire_date date NULL;
+ALTER TABLE drivers ADD COLUMN notes text NULL;
 
-ALTER TABLE daily_operations
-  ADD COLUMN IF NOT EXISTS km_initial decimal(12,2) NULL,
-  ADD COLUMN IF NOT EXISTS km_final decimal(12,2) NULL,
-  ADD COLUMN IF NOT EXISTS notes text NULL;
+ALTER TABLE daily_operations ADD COLUMN km_initial decimal(12,2) NULL;
+ALTER TABLE daily_operations ADD COLUMN km_final decimal(12,2) NULL;
+ALTER TABLE daily_operations ADD COLUMN notes text NULL;
 
-ALTER TABLE maintenance_records
-  ADD COLUMN IF NOT EXISTS maintenance_type varchar(32) NOT NULL DEFAULT 'corrective';
+ALTER TABLE maintenance_records ADD COLUMN maintenance_type varchar(32) NOT NULL DEFAULT 'corrective';
 
 CREATE TABLE IF NOT EXISTS driver_truck_history (
   id int AUTO_INCREMENT PRIMARY KEY,

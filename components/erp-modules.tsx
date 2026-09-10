@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   closeMonthlyPeriod,
   createAlert,
@@ -43,6 +44,7 @@ function formatDate(value: string | Date) {
 }
 
 export default function ErpModules({ fleet, team, data }: Props) {
+  const router = useRouter()
   const [form, setForm] = useState<FormState>({ ...initial, truckId: String(fleet[0]?.id ?? ''), driverId: String(team[0]?.id ?? '') })
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
@@ -54,8 +56,9 @@ export default function ErpModules({ fleet, team, data }: Props) {
     setMessage('')
     try {
       await action()
-      setMessage('Registro salvo com sucesso. Atualize a página para consultar os dados.')
+      setMessage('Registro salvo com sucesso.')
       setForm(current => ({ ...initial, truckId: current.truckId, driverId: current.driverId }))
+      router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível salvar')
     } finally {
@@ -118,7 +121,7 @@ export default function ErpModules({ fleet, team, data }: Props) {
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Módulos do ERP</h1>
             <p className="mt-2 text-sm text-muted-foreground">Registre os fatos da operação e deixe os indicadores para o sistema.</p>
           </div>
-          <a className="secondary-button" href="/">Voltar ao painel</a>
+          <span className="period-select">Painel completo</span>
         </div>
         {message && <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">{message}</div>}
         <div className="mb-6 flex flex-wrap items-center gap-3">
