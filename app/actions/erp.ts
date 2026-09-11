@@ -39,7 +39,7 @@ export async function updateMaintenanceStatus(input: { id: number; status: strin
   const allowed = ['agendada', 'proxima', 'em_manutencao', 'aguardando_peca', 'aguardando_servico', 'finalizada', 'cancelada']
   if (!allowed.includes(input.status) || !input.reason.trim()) throw new Error('Status ou justificativa inválidos.')
   await db.update(maintenanceRecord).set({ status: input.status, resolvedAt: input.status === 'finalizada' ? new Date().toISOString().slice(0, 10) : null }).where(eq(maintenanceRecord.id, input.id))
-  await db.insert(auditLog).values({ userId: user.id, action: 'update', entity: 'maintenance_record', entityId: String(input.id), reason: input.reason.trim() })
+  await db.insert(auditLog).values({ userId: user.id, action: 'update', entity: 'maintenance_record', entityId: String(input.id), metadata: JSON.stringify({ reason: input.reason.trim(), status: input.status }) })
   revalidatePath('/')
   revalidatePath('/erp')
 }
