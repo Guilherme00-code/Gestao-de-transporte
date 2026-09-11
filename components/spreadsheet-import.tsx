@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'
 import { importSpreadsheetData } from '@/app/actions/erp'
 
 type Row = Record<string, unknown>
-type Props = { fleet: Array<{ id: number; code: string; plate: string }>; team: Array<{ id: number; name: string }>; disabled?: boolean }
+type Props = { fleet?: Array<{ id: number; code: string; plate: string }>; team?: Array<{ id: number; name: string }>; disabled?: boolean }
 
 function text(value: unknown) {
   return String(value ?? '').trim()
@@ -46,16 +46,17 @@ function value(row: Row, keys: string[]) {
   return entry?.[1]
 }
 
-export default function SpreadsheetImport({ fleet, team, disabled }: Props) {
+export default function SpreadsheetImport({ fleet = [], team = [], disabled }: Props) {
   const [truckId, setTruckId] = useState(String(fleet[0]?.id ?? ''))
   const [driverId, setDriverId] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
+  const [preview, setPreview] = useState<{ cana: Row[]; fuel: Row[] } | null>(null)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!file || !truckId) return setMessage('Selecione um caminhão e a planilha.')
+    if (!file) return setMessage('Selecione uma planilha.')
     setPending(true)
     setMessage('')
     try {
@@ -79,8 +80,22 @@ export default function SpreadsheetImport({ fleet, team, disabled }: Props) {
         average: number(value(row, ['media'])),
         station: text(value(row, ['posto'])),
       })).filter(row => row.date && row.liters > 0 && row.km > 0)
-      const result = await importSpreadsheetData({ truckId: Number(truckId), driverId: Number(driverId) || undefined, cana, fuel })
+      if (!cana.length && !fuel.length) throw new Error('Nenhum registro válido foi encontrado na planilha.')
+      setPreview({ cana, fuel })
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível importar a planilha.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function confirmImport() {
+    if (!preview) return
+    setPending(true)
+    try {
+      const result = await importSpreadsheetData({ truckId: Number(truckId) || undefined, driverId: Number(driverId) || undefined, cana: preview.cana, fuel: preview.fuel })
       setMessage(`${result.trips} viagens de cana e ${result.fuelRecords} abastecimentos importados.`)
+      setPreview(null)
       setFile(null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível importar a planilha.')
@@ -89,5 +104,5 @@ export default function SpreadsheetImport({ fleet, team, disabled }: Props) {
     }
   }
 
-  return <section className="panel spreadsheet-import"><div className="panel-header"><div><div className="flex items-center gap-2"><FileSpreadsheet size={18} className="text-primary" /><h2 className="panel-title">Importar planilha operacional</h2></div><p className="panel-subtitle">Importe as abas “cana” e “abastecimento” para testar os dados reais no ERP.</p></div></div><form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={submit}><select className="period-select" value={truckId} onChange={event => setTruckId(event.target.value)} disabled={disabled}><option value="">Caminhão destino</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code} · {item.plate}</option>)}</select><select className="period-select" value={driverId} onChange={event => setDriverId(event.target.value)} disabled={disabled}><option value="">Motorista opcional</option>{team.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><label className="file-picker sm:col-span-2"><Upload size={16} /><span>{file?.name ?? 'Selecionar arquivo .xlsx'}</span><input type="file" accept=".xlsx,.xls" onChange={event => setFile(event.target.files?.[0] ?? null)} disabled={disabled} /></label><button className="primary-button sm:col-span-2 lg:col-span-4" disabled={pending || disabled}>{pending ? 'Importando...' : 'Importar dados da planilha'}</button></form>{message && <p className="mt-3 text-sm text-muted-foreground">{message}</p>}<p className="mt-3 text-xs text-muted-foreground">A planilha não possui preço do diesel; os abastecimentos entram com custo R$ 0,00 para não inventar valores.</p></section>
+  return <section className="panel spreadsheet-import"><div className="panel-header"><div><div className="flex items-center gap-2"><FileSpreadsheet size={18} className="text-primary" /><h2 className="panel-title">Importar planilha operacional</h2></div><p className="panel-subtitle">A prévia será revisada antes de qualquer gravação no banco.</p></div></div><form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={submit}><select className="period-select" value={truckId} onChange={event => setTruckId(event.target.value)} disabled={disabled}><option value="">Caminhão destino (opcional)</option>{fleet.map(item => <option key={item.id} value={item.id}>{item.code} · {item.plate}</option>)}</select><select className="period-select" value={driverId} onChange={event => setDriverId(event.target.value)} disabled={disabled}><option value="">Motorista opcional</option>{team.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><label className="file-picker sm:col-span-2"><Upload size={16} /><span>{file?.name ?? 'Selecionar arquivo .xlsx'}</span><input type="file" accept=".xlsx,.xls" onChange={event => setFile(event.target.files?.[0] ?? null)} disabled={disabled} /></label><button className="primary-button sm:col-span-2 lg:col-span-4" disabled={pending || disabled}>{pending ? 'Lendo planilha...' : 'Preparar importação'}</button></form>{message && <p className="mt-3 text-sm text-muted-foreground">{message}</p>}<p className="mt-3 text-xs text-muted-foreground">Os dados só serão salvos após sua confirmação.</p>{preview && <div className="modal-backdrop" role="presentation"><div className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="import-confirm-title"><h3 id="import-confirm-title">Confirmar importação</h3><p>Encontramos <strong>{preview.cana.length}</strong> viagens e <strong>{preview.fuel.length}</strong> abastecimentos válidos.</p><p className="muted">Depois de confirmar, os registros serão gravados no banco e auditados.</p><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setPreview(null)} disabled={pending}>Revisar depois</button><button type="button" className="primary-action" onClick={confirmImport} disabled={pending}>{pending ? 'Salvando...' : 'Confirmar e salvar'}</button></div></div></div>}</section>
 }
