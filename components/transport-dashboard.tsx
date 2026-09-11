@@ -18,7 +18,13 @@ const nav: { label: Module; icon: typeof Truck }[] = [
   { label: 'Visão geral', icon: LayoutDashboard }, { label: 'Operação diária', icon: Zap }, { label: 'Viagens e produção', icon: BarChart3 }, { label: 'Abastecimentos', icon: Fuel }, { label: 'Caminhões', icon: Truck }, { label: 'Motoristas', icon: UsersRound }, { label: 'Manutenção', icon: Wrench }, { label: 'Relatórios e fechamento', icon: FileText }, { label: 'Configurações', icon: Settings2 },
 ]
 const fmt = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
-const dateFmt = (value: string) => value ? new Intl.DateTimeFormat('pt-BR').format(new Date(`${value}T12:00:00`)) : '—'
+function dateFmt(value: string | Date | null | undefined) {
+  if (!value) return '—'
+  const raw = value instanceof Date ? value.toISOString() : value
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00` : raw
+  const parsed = new Date(normalized)
+  return Number.isNaN(parsed.getTime()) ? '—' : new Intl.DateTimeFormat('pt-BR').format(parsed)
+}
 
 function Metric({ label, value, note, icon: Icon }: { label: string; value: string; note: string; icon: typeof Truck }) { return <article className="metric-card"><div className="metric-top"><span className="metric-icon"><Icon size={17} /></span><span className="metric-note">{note}</span></div><p className="metric-label">{label}</p><p className="metric-value">{value}</p></article> }
 function SectionTitle({ title, description, action, onAction }: { title: string; description: string; action?: string; onAction?: () => void }) { return <div className="module-heading"><div><p className="eyebrow">CANALOG / OPERAÇÃO</p><h2>{title}</h2><p className="muted">{description}</p></div>{action && <button type="button" className="primary-action" onClick={onAction}><Plus size={16} /> {action}</button>}</div> }
