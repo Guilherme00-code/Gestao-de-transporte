@@ -9,7 +9,8 @@ export default function EmployeeAccountForm({ onSaved }: { onSaved?: () => void 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     setPending(true)
     setMessage('')
     try {
@@ -21,7 +22,7 @@ export default function EmployeeAccountForm({ onSaved }: { onSaved?: () => void 
         phone: String(form.get('phone') || ''),
         employeeId: String(form.get('employeeId') || ''),
       })
-      event.currentTarget.reset()
+      formElement.reset()
       setMessage('Funcionário cadastrado. Entregue a senha inicial de forma segura; ele poderá trocá-la em Minha conta.')
       onSaved?.()
     } catch (error) {

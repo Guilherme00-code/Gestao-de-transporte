@@ -9,7 +9,8 @@ export default function FuelForm({ onSaved }: { onSaved?: () => void }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     setPending(true)
     setMessage('')
     try {
@@ -20,7 +21,7 @@ export default function FuelForm({ onSaved }: { onSaved?: () => void }) {
         pricePerLiter: Number(form.get('pricePerLiter') || 0),
         station: String(form.get('station') || ''),
       })
-      event.currentTarget.reset()
+      formElement.reset()
       setMessage('Abastecimento salvo e custo total calculado.')
       onSaved?.()
     } catch (error) {
