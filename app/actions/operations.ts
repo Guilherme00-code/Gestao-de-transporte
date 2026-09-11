@@ -45,10 +45,10 @@ export async function createDailyOperation(input: { truckId: number; driverName:
   await createOperation({ operationDate: input.operationDate, truckCode: String(input.truckId), truckId: input.truckId, driverName: input.driverName, city: 'Usina', km: input.km, tons: input.tons, liters: input.liters, trips: input.trips, notes: input.notes })
 }
 
-export async function createFuelRecord(input: { truckId: number; driverName?: string; recordDate?: string; km: number; liters: number; pricePerLiter?: number; station?: string }) {
+export async function createFuelRecord(input: { truckId?: number; driverName?: string; recordDate?: string; km: number; liters: number; pricePerLiter?: number; station?: string }) {
   const currentUser = await getContext()
   if (input.km < 0 || input.liters <= 0) throw new Error('KM e litros devem ser válidos.')
-  await db.insert(fuelRecord).values({ ownerId: currentUser.id, truckId: input.truckId, recordDate: input.recordDate ?? new Date().toISOString().slice(0, 10), km: String(input.km), liters: String(input.liters), pricePerLiter: String(input.pricePerLiter ?? 0), totalCost: String((input.pricePerLiter ?? 0) * input.liters), station: input.station?.trim() || null })
+  await db.insert(fuelRecord).values({ ownerId: currentUser.id, truckId: input.truckId || null, recordDate: input.recordDate ?? new Date().toISOString().slice(0, 10), km: String(input.km), liters: String(input.liters), pricePerLiter: String(input.pricePerLiter ?? 0), totalCost: String((input.pricePerLiter ?? 0) * input.liters), station: input.station?.trim() || null })
   await db.insert(auditLog).values({ userId: currentUser.id, action: 'create', entity: 'fuel_record', metadata: JSON.stringify(input) })
   revalidatePath('/')
 }
