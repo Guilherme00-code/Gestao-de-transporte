@@ -19,5 +19,5 @@ export default async function Page() {
     departure: row.driverName,
   }))
   const fuel: FuelRecord[] = fuelRows.map((row) => ({ date: row.recordDate, station: row.station ?? 'Não informado', odometer: Number(row.odometer ?? 0), km: Number(row.km), liters: Number(row.liters) }))
-  return <TransportDashboard trips={trips} fuel={fuel} />
+  return <TransportDashboard trips={trips} fuel={fuel} role={user.role} />
 }

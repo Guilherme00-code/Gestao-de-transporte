@@ -33,16 +33,16 @@ export async function getManagementData() {
 export async function createTruck(input: { code: string; plate: string; brand: string; model: string; currentKm?: number; year?: number; capacityTons?: number; fuelType?: string; benchmarkKmL?: number }) {
   const current = await admin()
   if (!input.code.trim() || !input.plate.trim() || !input.brand.trim() || !input.model.trim()) throw new Error('Preencha os campos obrigatórios.')
-  const [created] = await db.insert(trucks).values({ ownerId: current.id, code: input.code.trim(), plate: input.plate.trim().toUpperCase(), brand: input.brand.trim(), model: input.model.trim(), currentKm: String(input.currentKm ?? 0), year: input.year || null, capacityTons: input.capacityTons ? String(input.capacityTons) : null, fuelType: input.fuelType?.trim() || 'Diesel', benchmarkKmL: input.benchmarkKmL ? String(input.benchmarkKmL) : null }).returning()
-  await db.insert(auditLog).values({ userId: current.id, action: 'create', entity: 'truck', entityId: String(created.id), metadata: JSON.stringify(input) })
+  await db.insert(trucks).values({ ownerId: current.id, code: input.code.trim(), plate: input.plate.trim().toUpperCase(), brand: input.brand.trim(), model: input.model.trim(), currentKm: String(input.currentKm ?? 0), year: input.year || null, capacityTons: input.capacityTons ? String(input.capacityTons) : null, fuelType: input.fuelType?.trim() || 'Diesel', benchmarkKmL: input.benchmarkKmL ? String(input.benchmarkKmL) : null })
+  await db.insert(auditLog).values({ userId: current.id, action: 'create', entity: 'truck', metadata: JSON.stringify(input) })
   revalidatePath('/')
 }
 
 export async function createDriver(input: { name: string; email?: string; phone?: string; employeeId?: string; assignedTruckId?: number }) {
   const current = await admin()
   if (!input.name.trim()) throw new Error('Informe o nome do motorista.')
-  const [created] = await db.insert(drivers).values({ ownerId: current.id, name: input.name.trim(), email: input.email?.trim() || null, phone: input.phone?.trim() || null, employeeId: input.employeeId?.trim() || null, assignedTruckId: input.assignedTruckId || null }).returning()
-  await db.insert(auditLog).values({ userId: current.id, action: 'create', entity: 'driver', entityId: String(created.id), metadata: JSON.stringify(input) })
+  await db.insert(drivers).values({ ownerId: current.id, name: input.name.trim(), email: input.email?.trim() || null, phone: input.phone?.trim() || null, employeeId: input.employeeId?.trim() || null, assignedTruckId: input.assignedTruckId || null })
+  await db.insert(auditLog).values({ userId: current.id, action: 'create', entity: 'driver', metadata: JSON.stringify(input) })
   revalidatePath('/')
 }
 

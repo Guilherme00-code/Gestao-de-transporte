@@ -8,7 +8,7 @@ import { auditLog, fuelRecord, transportOperation } from '@/lib/db/schema'
 export async function getErpData() { await getCurrentUser(); return { tripRows: [], operationRows: [], maintenanceRows: [], downtimeRows: [], expenseRows: [], revenueRows: [], fuelRows: [], alertRows: [], closureRows: [], auditRows: [] } }
 export async function importSpreadsheetData(input: { truckId?: number; driverId?: number; cana: Array<Record<string, unknown>>; fuel: Array<Record<string, unknown>> }) {
   const user = await getCurrentUser()
-  if (!user || user.role === 'accountant') throw new Error('Acesso não autorizado.')
+  if (!user || user.role !== 'admin') throw new Error('Somente administradores podem importar planilhas.')
   const cana = input.cana.filter((row) => row.date && row.city && Number(row.km) > 0 && Number(row.tons) > 0)
   const fuel = input.fuel.filter((row) => row.date && Number(row.liters) > 0 && Number.isFinite(Number(row.km)) && Number(row.km) >= 0)
   if (!cana.length && !fuel.length) throw new Error('A planilha não possui registros válidos para importar.')
@@ -37,8 +37,8 @@ export async function importSpreadsheetData(input: { truckId?: number; driverId?
       odometer: Number(row.odometer) > 0 ? String(Number(row.odometer)) : null,
       km: String(Number(row.km)),
       liters: String(Number(row.liters)),
-      pricePerLiter: '0',
-      totalCost: '0',
+      pricePerLiter: String(Number(row.pricePerLiter) || 0),
+      totalCost: String((Number(row.pricePerLiter) || 0) * Number(row.liters)),
       station: row.station ? String(row.station).trim() : null,
     })))
     await tx.insert(auditLog).values({ userId: user.id, action: 'import', entity: 'spreadsheet', metadata: JSON.stringify({ trips: cana.length, fuelRecords: fuel.length, truckId: input.truckId ?? null, driverId: input.driverId ?? null }) })

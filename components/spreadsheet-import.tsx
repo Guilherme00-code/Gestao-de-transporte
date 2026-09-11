@@ -86,6 +86,7 @@ export default function SpreadsheetImport({ fleet = [], team = [], disabled }: P
         odometer: number(value(row, ['km'])),
         km: number(value(row, ['km total'])),
         liters: number(value(row, ['litros'])),
+        pricePerLiter: number(value(row, ['preço litro', 'preco litro', 'valor litro', 'preco'])),
         average: number(value(row, ['media'])),
         station: text(value(row, ['posto'])),
       })).filter(row => row.date && row.liters > 0 && Number.isFinite(row.km) && row.km >= 0)

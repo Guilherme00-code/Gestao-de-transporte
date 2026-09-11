@@ -1,9 +1,11 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createOperation } from '@/app/actions/operations'
 
 export default function OperationForm() {
+  const router = useRouter()
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState('')
   const [confirmation, setConfirmation] = useState<FormData | null>(null)
@@ -30,6 +32,7 @@ export default function OperationForm() {
       })
       setConfirmation(null)
       setMessage('Operação salva com sucesso.')
+      router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível salvar a operação.')
     } finally {
