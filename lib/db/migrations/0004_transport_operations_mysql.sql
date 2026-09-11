@@ -1,25 +1,22 @@
-CREATE TABLE IF NOT EXISTS transport_operation (
-  id int AUTO_INCREMENT PRIMARY KEY,
-  user_id varchar(191) NOT NULL,
-  operation_date date NOT NULL,
-  truck_code varchar(64) NOT NULL,
-  driver_name varchar(191) NOT NULL,
-  city varchar(191) NOT NULL,
-  km decimal(12,2) NOT NULL,
-  tons decimal(12,2) NOT NULL,
-  liters decimal(12,2) NOT NULL,
-  status varchar(32) NOT NULL DEFAULT 'concluida',
-  created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX transport_operation_user_date (user_id, operation_date)
-);
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id int AUTO_INCREMENT PRIMARY KEY,
-  user_id varchar(191) NOT NULL,
-  action varchar(64) NOT NULL,
-  entity varchar(64) NOT NULL,
-  entity_id varchar(191),
-  metadata text,
-  created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX audit_logs_user_entity (user_id, entity)
-);
+CREATE TABLE IF NOT EXISTS `user` (`id` varchar(191) PRIMARY KEY NOT NULL, `name` varchar(191) NOT NULL, `email` varchar(191) NOT NULL UNIQUE, `emailVerified` boolean NOT NULL DEFAULT false, `image` text, `role` varchar(32) NOT NULL DEFAULT 'admin', `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `session` (`id` varchar(191) PRIMARY KEY NOT NULL, `expiresAt` datetime NOT NULL, `token` varchar(191) NOT NULL UNIQUE, `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, `ipAddress` varchar(191), `userAgent` text, `userId` varchar(191) NOT NULL);
+CREATE TABLE IF NOT EXISTS `account` (`id` varchar(191) PRIMARY KEY NOT NULL, `accountId` varchar(191) NOT NULL, `providerId` varchar(191) NOT NULL, `userId` varchar(191) NOT NULL, `accessToken` text, `refreshToken` text, `idToken` text, `accessTokenExpiresAt` datetime, `refreshTokenExpiresAt` datetime, `scope` text, `password` text, `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `verification` (`id` varchar(191) PRIMARY KEY NOT NULL, `identifier` varchar(191) NOT NULL, `value` text NOT NULL, `expiresAt` datetime NOT NULL, `createdAt` datetime DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `truck` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `code` varchar(64) NOT NULL, `plate` varchar(32) NOT NULL, `brand` varchar(100) NOT NULL, `model` varchar(100) NOT NULL, `year` int, `capacity_tons` decimal(10,2), `fuel_type` varchar(32) DEFAULT 'Diesel', `benchmark_km_l` decimal(10,2), `current_km` decimal(12,2) NOT NULL DEFAULT 0, `status` varchar(32) NOT NULL DEFAULT 'active', `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `driver` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `user_id` varchar(191), `name` varchar(191) NOT NULL, `email` varchar(191), `phone` varchar(64), `employee_id` varchar(64), `assigned_truck_id` int, `status` varchar(32) NOT NULL DEFAULT 'active', `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `transport_operation` (`id` int AUTO_INCREMENT PRIMARY KEY, `user_id` varchar(191) NOT NULL, `truck_id` int, `driver_id` int, `operation_date` date NOT NULL, `truck_code` varchar(64) NOT NULL, `driver_name` varchar(191) NOT NULL, `city` varchar(191) NOT NULL, `km` decimal(12,2) NOT NULL, `tons` decimal(12,2) NOT NULL, `liters` decimal(12,2) NOT NULL, `trips` decimal(10,2) NOT NULL DEFAULT 1, `status` varchar(32) NOT NULL DEFAULT 'concluida', `notes` text, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `transport_operation_user_date` (`user_id`, `operation_date`));
+CREATE TABLE IF NOT EXISTS `fuel_record` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int, `driver_id` int, `record_date` date NOT NULL, `odometer` decimal(12,2), `km` decimal(12,2) NOT NULL, `liters` decimal(12,2) NOT NULL, `price_per_liter` decimal(10,3) NOT NULL DEFAULT 0, `total_cost` decimal(12,2) NOT NULL DEFAULT 0, `station` varchar(191), `fuel_type` varchar(32) NOT NULL DEFAULT 'Diesel', `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `maintenance_record` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int NOT NULL, `maintenance_date` date NOT NULL, `maintenance_type` varchar(32) NOT NULL DEFAULT 'corretiva', `problem` varchar(191) NOT NULL, `description` text, `parts_cost` decimal(12,2) NOT NULL DEFAULT 0, `labor_cost` decimal(12,2) NOT NULL DEFAULT 0, `status` varchar(32) NOT NULL DEFAULT 'aberta', `resolved_at` date, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `downtime_record` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int NOT NULL, `started_at` date NOT NULL, `ended_at` date, `reason` varchar(191) NOT NULL, `potential_revenue` decimal(12,2) NOT NULL DEFAULT 0, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `revenue` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int, `operation_id` int, `revenue_date` date NOT NULL, `description` varchar(191) NOT NULL, `amount` decimal(12,2) NOT NULL, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `expense` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int, `expense_date` date NOT NULL, `category` varchar(100) NOT NULL, `description` varchar(191) NOT NULL, `amount` decimal(12,2) NOT NULL, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `monthly_closure` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `reference_month` date NOT NULL, `status` varchar(32) NOT NULL DEFAULT 'open', `closed_at` datetime, `closed_by` varchar(191), `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `incident` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int, `driver_id` int, `incident_date` date NOT NULL, `category` varchar(100) NOT NULL, `description` text NOT NULL, `status` varchar(32) NOT NULL DEFAULT 'aberta', `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `benchmark` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int, `metric` varchar(100) NOT NULL, `target_value` decimal(12,2) NOT NULL, `valid_from` date NOT NULL, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `notification` (`id` int AUTO_INCREMENT PRIMARY KEY, `user_id` varchar(191) NOT NULL, `title` varchar(191) NOT NULL, `message` text NOT NULL, `read_at` datetime, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `setting` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `setting_key` varchar(100) NOT NULL, `setting_value` text NOT NULL, `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `preventive_maintenance_rule` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `truck_id` int, `name` varchar(191) NOT NULL, `component` varchar(100) NOT NULL, `interval_km` decimal(12,2), `interval_days` int, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `alert_rule` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `category` varchar(100) NOT NULL, `metric` varchar(100) NOT NULL, `warning_percent` decimal(6,2) NOT NULL, `critical_percent` decimal(6,2) NOT NULL, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `revenue_rule` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `name` varchar(191) NOT NULL, `billing_type` varchar(32) NOT NULL, `origin` varchar(191), `destination` varchar(191), `rate` decimal(12,2) NOT NULL, `valid_from` date NOT NULL, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `expense_category` (`id` int AUTO_INCREMENT PRIMARY KEY, `owner_id` varchar(191) NOT NULL, `name` varchar(191) NOT NULL, `scope` varchar(32) NOT NULL, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS `audit_log` (`id` int AUTO_INCREMENT PRIMARY KEY, `user_id` varchar(191) NOT NULL, `action` varchar(64) NOT NULL, `entity` varchar(64) NOT NULL, `entity_id` varchar(191), `metadata` text, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `audit_log_user_entity` (`user_id`, `entity`));
