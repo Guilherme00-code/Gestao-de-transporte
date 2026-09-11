@@ -6,6 +6,12 @@ import { user } from '@/lib/db/schema'
 
 export type UserRole = 'admin' | 'accountant' | 'driver'
 
+function normalizeRole(value: unknown): UserRole {
+  if (value === 'contador' || value === 'accountant') return 'accountant'
+  if (value === 'funcionario' || value === 'funcionário' || value === 'driver') return 'driver'
+  return 'admin'
+}
+
 export async function getCurrentUser() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return null
@@ -16,6 +22,6 @@ export async function getCurrentUser() {
     .where(eq(user.id, session.user.id))
     .limit(1)
 
-  const role = record?.role === 'accountant' || record?.role === 'driver' ? record.role : 'admin'
+  const role = normalizeRole(record?.role)
   return { ...session.user, role } as typeof session.user & { role: UserRole }
 }

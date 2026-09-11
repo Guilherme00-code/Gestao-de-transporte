@@ -1,83 +1,53 @@
 'use server'
 
-import { db } from '@/lib/db'
-import { dailyOperations, drivers, trucks } from '@/lib/db/schema'
-import { desc, eq, or } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { db } from '@/lib/db'
+import { drivers, trucks, transportOperation, auditLog } from '@/lib/db/schema'
 import { getCurrentUser } from '@/lib/current-user'
 
-async function getContext() {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) throw new Error('Não autorizado')
-  return { userId: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role }
+async function context() {
+  const current = await getCurrentUser()
+  if (!current) throw new Error('Não autorizado.')
+  return current
+}
+async function admin() {
+  const current = await context()
+  if (current.role !== 'admin') throw new Error('Somente administradores podem alterar cadastros.')
+  return current
 }
 
 export async function getManagementData() {
-  const { userId, email, name, role } = await getContext()
-  const canViewCompanyData = role === 'admin' || role === 'accountant'
-  const fleetSelection = {
-    id: trucks.id,
-    code: trucks.code,
-    plate: trucks.plate,
-    model: trucks.model,
-    brand: trucks.brand,
-    status: trucks.status,
-    currentDriver: trucks.currentDriver,
-    currentKm: trucks.currentKm,
-    benchmarkKmL: trucks.benchmarkKmL,
+  const current = await context()
+  const company = current.role !== 'driver'
+  const fleet = await db.select().from(trucks).where(company ? undefined : eq(trucks.ownerId, current.id)).orderBy(desc(trucks.createdAt))
+  const team = await db.select().from(drivers).where(company ? undefined : eq(drivers.ownerId, current.id)).orderBy(desc(drivers.createdAt))
+  const operations = await db.select().from(transportOperation).where(company ? undefined : eq(transportOperation.userId, current.id)).orderBy(desc(transportOperation.operationDate))
+  return {
+    fleet: fleet.map((item) => ({ ...item, userId: item.ownerId, currentDriver: null, benchmarkKmL: item.benchmarkKmL ?? '0' })),
+    team,
+    operations: operations.map((item) => ({ ...item, truckId: item.truckId ?? 0, trips: item.trips, kmPerTrip: '0', tonsPerTrip: '0', kmPerLiter: Number(item.liters) ? String(Number(item.km) / Number(item.liters)) : '0', litersPer100Km: Number(item.km) ? String(Number(item.liters) * 100 / Number(item.km)) : '0' })),
   }
-  const teamSelection = {
-    id: drivers.id,
-    name: drivers.name,
-    email: drivers.email,
-    phone: drivers.phone,
-    employeeId: drivers.employeeId,
-    assignedTruckId: drivers.assignedTruckId,
-    status: drivers.status,
-  }
-  const operationSelection = {
-    id: dailyOperations.id,
-    truckId: dailyOperations.truckId,
-    driverName: dailyOperations.driverName,
-    operationDate: dailyOperations.operationDate,
-    km: dailyOperations.km,
-    trips: dailyOperations.trips,
-    tons: dailyOperations.tons,
-    liters: dailyOperations.liters,
-    kmPerTrip: dailyOperations.kmPerTrip,
-    tonsPerTrip: dailyOperations.tonsPerTrip,
-    kmPerLiter: dailyOperations.kmPerLiter,
-    litersPer100Km: dailyOperations.litersPer100Km,
-  }
-  const [allFleet, team] = await Promise.all([
-    // The current deployment represents one transport company, so its authenticated
-    // users share the fleet while records remain attributed to the submitting user.
-    db.select(fleetSelection).from(trucks).orderBy(desc(trucks.createdAt)),
-    canViewCompanyData
-      ? db.select(teamSelection).from(drivers).orderBy(desc(drivers.createdAt))
-      : db.select(teamSelection).from(drivers).where(or(eq(drivers.email, email), eq(drivers.name, name))).orderBy(desc(drivers.createdAt)),
-  ])
-  const fleet = canViewCompanyData
-    ? allFleet
-    : allFleet.filter(truck => team.some(driver => driver.assignedTruckId === truck.id))
-  const operations = canViewCompanyData
-    ? await db.select(operationSelection).from(dailyOperations).orderBy(desc(dailyOperations.operationDate))
-    : await db.select(operationSelection).from(dailyOperations).where(eq(dailyOperations.userId, userId)).orderBy(desc(dailyOperations.operationDate))
-  return { fleet, team, operations }
 }
 
-export async function createTruck(input: { code: string; plate: string; brand: string; model: string; currentKm?: number }) {
-  const { userId, role } = await getContext()
-  if (role !== 'admin') throw new Error('Somente administradores podem cadastrar caminhões')
-  if (!input.code.trim() || !input.plate.trim() || !input.brand.trim() || !input.model.trim()) throw new Error('Preencha todos os campos obrigatórios')
-  await db.insert(trucks).values({ userId, code: input.code.trim(), plate: input.plate.trim().toUpperCase(), brand: input.brand.trim(), model: input.model.trim(), currentKm: String(input.currentKm ?? 0) })
+export async function createTruck(input: { code: string; plate: string; brand: string; model: string; currentKm?: number; year?: number; capacityTons?: number; fuelType?: string; benchmarkKmL?: number }) {
+  const current = await admin()
+  if (!input.code.trim() || !input.plate.trim() || !input.brand.trim() || !input.model.trim()) throw new Error('Preencha os campos obrigatórios.')
+  const [created] = await db.insert(trucks).values({ ownerId: current.id, code: input.code.trim(), plate: input.plate.trim().toUpperCase(), brand: input.brand.trim(), model: input.model.trim(), currentKm: String(input.currentKm ?? 0), year: input.year || null, capacityTons: input.capacityTons ? String(input.capacityTons) : null, fuelType: input.fuelType?.trim() || 'Diesel', benchmarkKmL: input.benchmarkKmL ? String(input.benchmarkKmL) : null }).returning()
+  await db.insert(auditLog).values({ userId: current.id, action: 'create', entity: 'truck', entityId: String(created.id), metadata: JSON.stringify(input) })
   revalidatePath('/')
 }
 
 export async function createDriver(input: { name: string; email?: string; phone?: string; employeeId?: string; assignedTruckId?: number }) {
-  const { userId, role } = await getContext()
-  if (role !== 'admin') throw new Error('Somente administradores podem cadastrar motoristas')
-  if (!input.name.trim()) throw new Error('Informe o nome do motorista')
-  await db.insert(drivers).values({ userId, name: input.name.trim(), email: input.email?.trim() || null, phone: input.phone?.trim() || null, employeeId: input.employeeId?.trim() || null, assignedTruckId: input.assignedTruckId || null })
+  const current = await admin()
+  if (!input.name.trim()) throw new Error('Informe o nome do motorista.')
+  const [created] = await db.insert(drivers).values({ ownerId: current.id, name: input.name.trim(), email: input.email?.trim() || null, phone: input.phone?.trim() || null, employeeId: input.employeeId?.trim() || null, assignedTruckId: input.assignedTruckId || null }).returning()
+  await db.insert(auditLog).values({ userId: current.id, action: 'create', entity: 'driver', entityId: String(created.id), metadata: JSON.stringify(input) })
+  revalidatePath('/')
+}
+
+export async function updateTruckStatus(truckId: number, status: string) {
+  const current = await admin()
+  await db.update(trucks).set({ status: status.trim() || 'active' }).where(and(eq(trucks.id, truckId), eq(trucks.ownerId, current.id)))
   revalidatePath('/')
 }

@@ -1,55 +1,54 @@
 'use server'
 
-import { db } from '@/lib/db'
-import { alertRules, dailyOperations, drivers, fuelRecords, notifications, trucks } from '@/lib/db/schema'
-import { and, eq, or } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { eq, desc } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { auditLog, fuelRecord, transportOperation } from '@/lib/db/schema'
+import { validateOperation } from '@/lib/transport-metrics'
 import { getCurrentUser } from '@/lib/current-user'
-import { calculateFuelCost, calculateOperationMetrics } from '@/lib/erp/calculations'
 
 async function getContext() {
   const currentUser = await getCurrentUser()
-  if (!currentUser) throw new Error('Não autorizado')
-  return { userId: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role }
+  if (!currentUser) throw new Error('Não autorizado.')
+  return currentUser
 }
-async function assertTruckAccess(userId: string, email: string, name: string, role: string, truckId: number) {
-  if (!Number.isInteger(truckId) || truckId <= 0) throw new Error('Selecione um caminhão válido')
-  const [truck] = role === 'admin' || role === 'accountant'
-    ? await db.select({ id: trucks.id }).from(trucks).where(eq(trucks.id, truckId)).limit(1)
-    : await db.select({ id: trucks.id }).from(trucks).innerJoin(drivers, eq(drivers.assignedTruckId, trucks.id)).where(and(eq(trucks.id, truckId), or(eq(drivers.email, email), eq(drivers.name, name)))).limit(1)
-  if (!truck) throw new Error('Caminhão não encontrado para esta conta')
+
+export async function listOperations() {
+  const currentUser = await getContext()
+  const query = db.select().from(transportOperation)
+  return (currentUser.role === 'driver'
+    ? query.where(eq(transportOperation.userId, currentUser.id))
+    : query).orderBy(desc(transportOperation.operationDate))
 }
-function validNumber(value: number | undefined): value is number { return value !== undefined && Number.isFinite(value) }
+
+export async function listFuelRecords() {
+  const currentUser = await getContext()
+  const query = db.select().from(fuelRecord)
+  return (currentUser.role === 'driver' ? query.where(eq(fuelRecord.ownerId, currentUser.id)) : query).orderBy(desc(fuelRecord.recordDate))
+}
+
+export async function createOperation(input: { operationDate: string; truckCode: string; driverName: string; city: string; km: number; tons: number; liters: number; truckId?: number; driverId?: number; trips?: number; notes?: string }) {
+  const currentUser = await getContext()
+  if (currentUser.role === 'accountant') throw new Error('Contadores possuem acesso somente para consulta.')
+  validateOperation(input)
+  const [created] = await db.insert(transportOperation).values({
+    userId: currentUser.id, truckId: input.truckId || null, driverId: input.driverId || null, operationDate: input.operationDate, truckCode: input.truckCode.trim(),
+    driverName: input.driverName.trim(), city: input.city.trim(), km: String(input.km),
+    tons: String(input.tons), liters: String(input.liters), trips: String(input.trips ?? 1), notes: input.notes?.trim() || null,
+  }).returning()
+  await db.insert(auditLog).values({ userId: currentUser.id, action: 'create', entity: 'transport_operation', entityId: String(created.id), metadata: JSON.stringify(input) })
+  revalidatePath('/')
+  return created
+}
 
 export async function createDailyOperation(input: { truckId: number; driverName: string; operationDate: string; km: number; trips: number; tons: number; liters: number; kmInitial?: number; kmFinal?: number; notes?: string }) {
-  const { userId, email, name, role } = await getContext()
-  if (role === 'accountant') throw new Error('Contadores consultam os registros enviados pelos funcionários')
-  await assertTruckAccess(userId, email, name, role, input.truckId)
-  if (!input.driverName.trim() || !input.operationDate || ![input.km, input.trips, input.tons, input.liters].every(validNumber) || input.km < 0 || input.trips <= 0 || input.tons < 0 || input.liters < 0) throw new Error('Informe valores válidos para a operação')
-  if ((input.kmInitial == null) !== (input.kmFinal == null) || (input.kmInitial != null && ![input.kmInitial, input.kmFinal].every(validNumber))) throw new Error('Informe KM inicial e KM final juntos')
-  const metrics = calculateOperationMetrics(input)
-  const driverName = role === 'driver' ? name : input.driverName.trim()
-  await db.insert(dailyOperations).values({ userId, truckId: input.truckId, driverName, operationDate: new Date(`${input.operationDate}T00:00:00`), kmInitial: input.kmInitial == null ? null : String(input.kmInitial), kmFinal: input.kmFinal == null ? null : String(input.kmFinal), km: String(metrics.km), trips: String(metrics.trips), tons: String(metrics.tons), liters: String(metrics.liters), kmPerTrip: String(metrics.kmPerTrip ?? 0), tonsPerTrip: String(metrics.tonsPerTrip ?? 0), kmPerLiter: String(metrics.kmPerLiter ?? 0), litersPer100Km: String(metrics.litersPer100Km ?? 0), notes: input.notes?.trim() || null })
-  if (metrics.kmPerLiter != null && metrics.kmPerLiter > 0) {
-    const [truck] = await db.select({ benchmarkKmL: trucks.benchmarkKmL }).from(trucks).where(eq(trucks.id, input.truckId)).limit(1)
-    const [rule] = await db.select({ warningPercent: alertRules.warningPercent, criticalPercent: alertRules.criticalPercent }).from(alertRules).where(and(eq(alertRules.userId, userId), eq(alertRules.category, 'fuel'), eq(alertRules.metric, 'km_l'), eq(alertRules.active, true))).limit(1)
-    const benchmark = Number(truck?.benchmarkKmL ?? 0)
-    const deviation = benchmark > 0 ? ((benchmark - metrics.kmPerLiter) / benchmark) * 100 : 0
-    if (rule && deviation >= Number(rule.warningPercent)) {
-      const severity = deviation >= Number(rule.criticalPercent) ? 'critical' : 'warning'
-      await db.insert(notifications).values({ userId, category: 'fuel', title: severity === 'critical' ? 'Consumo muito abaixo da referência' : 'Consumo abaixo da referência', message: `O consumo desta operação ficou ${deviation.toFixed(1)}% abaixo da referência configurada.` })
-    }
-  }
-  revalidatePath('/')
+  await createOperation({ operationDate: input.operationDate, truckCode: String(input.truckId), truckId: input.truckId, driverName: input.driverName, city: 'Usina', km: input.km, tons: input.tons, liters: input.liters, trips: input.trips, notes: input.notes })
 }
 
-export async function createFuelRecord(input: { truckId: number; driverName: string; recordDate: string; km: number; liters: number; pricePerLiter: number; station?: string }) {
-  const { userId, email, name, role } = await getContext()
-  if (role === 'accountant') throw new Error('Contadores consultam os abastecimentos enviados pelos funcionários')
-  await assertTruckAccess(userId, email, name, role, input.truckId)
-  if (!input.driverName.trim() || !input.recordDate || ![input.km, input.liters, input.pricePerLiter].every(validNumber) || input.km <= 0 || input.liters <= 0 || input.pricePerLiter < 0) throw new Error('Informe valores válidos para o abastecimento')
-  const { totalCost } = calculateFuelCost(input.liters, input.pricePerLiter)
-  const driverName = role === 'driver' ? name : input.driverName.trim()
-  await db.insert(fuelRecords).values({ userId, truckId: input.truckId, driverName, recordDate: new Date(`${input.recordDate}T00:00:00`), km: String(input.km), liters: String(input.liters), pricePerLiter: String(input.pricePerLiter), totalCost: String(totalCost), costPerKm: String(totalCost / input.km), station: input.station?.trim() || null, fuelType: 'Diesel' })
+export async function createFuelRecord(input: { truckId: number; driverName?: string; recordDate?: string; km: number; liters: number; pricePerLiter?: number; station?: string }) {
+  const currentUser = await getContext()
+  if (input.km < 0 || input.liters <= 0) throw new Error('KM e litros devem ser válidos.')
+  await db.insert(fuelRecord).values({ ownerId: currentUser.id, truckId: input.truckId, recordDate: input.recordDate ?? new Date().toISOString().slice(0, 10), km: String(input.km), liters: String(input.liters), pricePerLiter: String(input.pricePerLiter ?? 0), totalCost: String((input.pricePerLiter ?? 0) * input.liters), station: input.station?.trim() || null })
+  await db.insert(auditLog).values({ userId: currentUser.id, action: 'create', entity: 'fuel_record', metadata: JSON.stringify(input) })
   revalidatePath('/')
 }
