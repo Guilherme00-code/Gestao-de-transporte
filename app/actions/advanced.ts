@@ -84,12 +84,18 @@ export async function markNotificationRead(notificationId: number) {
   await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.id, notificationId), eq(notifications.userId, current.id)))
   revalidatePath('/')
 }
-export async function createEmployeeAccount(input: { name: string; email: string; password: string; phone?: string; employeeId?: string; truckId?: number }) {
+export async function listUnreadNotifications() {
+  const current = await context()
+  return db.select().from(notifications).where(and(eq(notifications.userId, current.id), isNull(notifications.readAt))).orderBy(desc(notifications.createdAt))
+}
+export async function createEmployeeAccount(input: { name: string; email: string; password: string; role: 'driver' | 'accountant'; phone?: string; employeeId?: string; truckId?: number }) {
   const current = await admin()
   if (input.password.length < 8) throw new Error('A senha inicial deve ter pelo menos 8 caracteres.')
+  if (input.role !== 'driver' && input.role !== 'accountant') throw new Error('Selecione um perfil válido para o funcionário.')
   const result = await auth.api.signUpEmail({ body: { name: text(input.name, 'Nome'), email: text(input.email, 'E-mail').toLowerCase(), password: input.password } })
   if (!result.user) throw new Error('Não foi possível criar a conta do funcionário.')
-  await db.update(user).set({ role: 'driver', updatedAt: new Date() }).where(eq(user.id, result.user.id))
-  await db.insert(drivers).values({ ownerId: current.id, userId: result.user.id, name: input.name.trim(), email: input.email.trim().toLowerCase(), phone: input.phone?.trim() || null, employeeId: input.employeeId?.trim() || null, assignedTruckId: input.truckId || null })
+  await db.update(user).set({ role: input.role, updatedAt: new Date() }).where(eq(user.id, result.user.id))
+  if (input.role === 'driver') await db.insert(drivers).values({ ownerId: current.id, userId: result.user.id, name: input.name.trim(), email: input.email.trim().toLowerCase(), phone: input.phone?.trim() || null, employeeId: input.employeeId?.trim() || null, assignedTruckId: input.truckId || null })
+  await db.insert(notifications).values({ userId: result.user.id, title: 'Acesso criado', message: 'Seu acesso foi criado pelo administrador. Entre com a senha inicial e altere-a em Minha conta.' })
   revalidatePath('/')
 }
