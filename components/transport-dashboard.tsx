@@ -23,7 +23,7 @@ function dateFmt(value: string | Date | null | undefined) {
   const raw = value instanceof Date ? value.toISOString() : value
   const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T12:00:00` : raw
   const parsed = new Date(normalized)
-  return Number.isNaN(parsed.getTime()) ? '—' : new Intl.DateTimeFormat('pt-BR').format(parsed)
+  return Number.isNaN(parsed.getTime()) ? '—' : new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(parsed)
 }
 
 function Metric({ label, value, note, icon: Icon }: { label: string; value: string; note: string; icon: typeof Truck }) { return <article className="metric-card"><div className="metric-top"><span className="metric-icon"><Icon size={17} /></span><span className="metric-note">{note}</span></div><p className="metric-label">{label}</p><p className="metric-value">{value}</p></article> }
