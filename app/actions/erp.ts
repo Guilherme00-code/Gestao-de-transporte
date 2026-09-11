@@ -2,29 +2,49 @@
 
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/current-user'
-import { createOperation } from '@/app/actions/operations'
 import { db } from '@/lib/db'
-import { auditLog, fuelRecord } from '@/lib/db/schema'
+import { auditLog, fuelRecord, transportOperation } from '@/lib/db/schema'
 
 export async function getErpData() { await getCurrentUser(); return { tripRows: [], operationRows: [], maintenanceRows: [], downtimeRows: [], expenseRows: [], revenueRows: [], fuelRows: [], alertRows: [], closureRows: [], auditRows: [] } }
 export async function importSpreadsheetData(input: { truckId?: number; driverId?: number; cana: Array<Record<string, unknown>>; fuel: Array<Record<string, unknown>> }) {
   const user = await getCurrentUser()
   if (!user || user.role === 'accountant') throw new Error('Acesso não autorizado.')
-  let imported = 0
-  let fuelImported = 0
-  for (const row of input.cana) {
-    if (!row.date || !row.city || Number(row.km) <= 0 || Number(row.tons) <= 0) continue
-    await createOperation({ operationDate: String(row.date), truckCode: String(input.truckId ?? 'IMPORTADO'), truckId: input.truckId, driverName: 'Importação', city: String(row.city), km: Number(row.km), tons: Number(row.tons), liters: 0 })
-    imported++
-  }
-  for (const row of input.fuel) {
-    if (!row.date || Number(row.liters) <= 0 || Number(row.km) <= 0) continue
-    await db.insert(fuelRecord).values({ ownerId: user.id, truckId: input.truckId || null, recordDate: String(row.date), km: String(row.km), liters: String(row.liters), pricePerLiter: '0', totalCost: '0', station: row.station ? String(row.station) : null })
-    fuelImported++
-  }
-  await db.insert(auditLog).values({ userId: user.id, action: 'import', entity: 'spreadsheet', metadata: JSON.stringify({ trips: imported, fuelRecords: fuelImported }) })
+  const cana = input.cana.filter((row) => row.date && row.city && Number(row.km) > 0 && Number(row.tons) > 0)
+  const fuel = input.fuel.filter((row) => row.date && Number(row.liters) > 0 && Number.isFinite(Number(row.km)) && Number(row.km) >= 0)
+  if (!cana.length && !fuel.length) throw new Error('A planilha não possui registros válidos para importar.')
+
+  // A transação impede que uma falha deixe a planilha apenas parcialmente salva.
+  await db.transaction(async (tx) => {
+    if (cana.length) await tx.insert(transportOperation).values(cana.map((row) => ({
+      userId: user.id,
+      truckId: input.truckId || null,
+      driverId: input.driverId || null,
+      operationDate: String(row.date),
+      truckCode: String(input.truckId ?? 'IMPORTADO'),
+      driverName: 'Importação de planilha',
+      city: String(row.city).trim(),
+      km: String(Number(row.km)),
+      tons: String(Number(row.tons)),
+      liters: '0',
+      trips: '1',
+      notes: row.departureTime ? `Saída informada na planilha: ${String(row.departureTime)}` : null,
+    })))
+    if (fuel.length) await tx.insert(fuelRecord).values(fuel.map((row) => ({
+      ownerId: user.id,
+      truckId: input.truckId || null,
+      driverId: input.driverId || null,
+      recordDate: String(row.date),
+      odometer: Number(row.odometer) > 0 ? String(Number(row.odometer)) : null,
+      km: String(Number(row.km)),
+      liters: String(Number(row.liters)),
+      pricePerLiter: '0',
+      totalCost: '0',
+      station: row.station ? String(row.station).trim() : null,
+    })))
+    await tx.insert(auditLog).values({ userId: user.id, action: 'import', entity: 'spreadsheet', metadata: JSON.stringify({ trips: cana.length, fuelRecords: fuel.length, truckId: input.truckId ?? null, driverId: input.driverId ?? null }) })
+  })
   revalidatePath('/')
-  return { trips: imported, fuelRecords: fuelImported }
+  return { trips: cana.length, fuelRecords: fuel.length }
 }
 export const createTrip = async (..._args: unknown[]) => { throw new Error('Use o formulário de operação para registrar viagens.') }
 export const createMaintenance = createTrip
